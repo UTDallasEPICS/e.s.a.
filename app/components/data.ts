@@ -5,7 +5,7 @@ export type Project = {
   projectNumber?: number;
   name: string;
   partnerId: string;
-  status: 'Active' | 'Completed' | 'Paused' | 'In Progress' | 'New';
+  status: 'Active' | 'New' | 'In Progress' | 'Paused' | 'Completed' | 'Dropped';
   description: string;
   semesters: string[];
   mentorName?: string;
@@ -20,6 +20,8 @@ export type ProjectSemesterDetail = {
   mentorName: string;
   mentorEmail: string;
   teamSkills?: string[];
+  status?: Project['status'];
+  statusNote?: string;
 };
 export type Student = {
   id: string;

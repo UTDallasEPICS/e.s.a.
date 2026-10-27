@@ -3,8 +3,23 @@ import { officialProjectRosters, projects, students, teams } from './data'
 import type { Project, Student } from './data'
 
 export type RecoveryItem =
-  | { key: string; type: 'student'; deletedAt: string; record: Student }
-  | { key: string; type: 'project'; deletedAt: string; record: Project }
+  | {
+      key: string
+      type: 'student'
+      deletedAt: string
+      record: Student
+      assignments?: {
+        projectId: string
+        semesterId: string
+      }[]
+    }
+  | {
+      key: string
+      type: 'project'
+      deletedAt: string
+      record: Project
+    }
+
 export type ProjectAssignmentRemoval = {
   id: string
   projectId: string
@@ -202,13 +217,34 @@ export function updateProject(projectId: string, updates: Partial<Project>) {
 export function removeStudent(studentId: string) {
   const index = students.findIndex(student => student.id === studentId)
   if (index < 0) return
-  const [record] = students.splice(index, 1)
-  recoveryItems.value.unshift({
+
+  const assignments = teams
+  .filter(team => team.studentIds.includes(studentId))
+  .map(team => ({
+    projectId: team.projectId,
+    semesterId: team.semesterId,
+  }))
+
+const [record] = students.splice(index, 1)
+
+recoveryItems.value.unshift({
     key: `student:${record.id}`,
     type: 'student',
     deletedAt: new Date().toISOString(),
     record: { ...record },
+assignments,
   })
+
+  teams.forEach(team => {
+    if (team.studentIds.includes(studentId)) {
+      team.studentIds = team.studentIds.filter(id => id !== studentId)
+
+      teamOverrides[`${team.projectId}:${team.semesterId}`] = [
+        ...team.studentIds,
+      ]
+    }
+  })
+
   persist()
 }
 
@@ -228,13 +264,35 @@ export function removeProject(projectId: string) {
 export function restoreItem(key: string) {
   const index = recoveryItems.value.findIndex(item => item.key === key)
   if (index < 0) return
+
   const [item] = recoveryItems.value.splice(index, 1)
-  if (item.type === 'student' && !students.some(student => student.id === item.record.id)) {
-    students.push(item.record)
+
+  if (item.type === 'student') {
+    if (!students.some(student => student.id === item.record.id)) {
+      students.push(item.record)
+    }
+
+    // Restore the student's original project assignments.
+    item.assignments?.forEach(assignment => {
+      const team = teams.find(team =>
+        team.projectId === assignment.projectId &&
+        team.semesterId === assignment.semesterId
+      )
+
+      if (team && !team.studentIds.includes(item.record.id)) {
+        team.studentIds.push(item.record.id)
+
+        teamOverrides[`${team.projectId}:${team.semesterId}`] = [
+          ...team.studentIds,
+        ]
+      }
+    })
   }
+
   if (item.type === 'project' && !projects.some(project => project.id === item.record.id)) {
     projects.push(item.record)
   }
+
   persist()
 }
 

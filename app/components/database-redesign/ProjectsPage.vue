@@ -6,7 +6,12 @@ import StatusBadge from './StatusBadge.vue'
 import type { PinnedItem } from '../types'
 import { addProject, removeProject, updateProject, removeProjectAssignments } from '../contentStore'
 
-const semFilter = ref('all')
+const semesterStatusDraft = ref<Record<string, Project['status']>>({})
+const semesterNoteDraft = ref<Record<string, string>>({})
+const semFilter = useState<string>(
+  'epics-selected-semester',
+  () => 'FA26'
+)
 const statusFilter = ref('all')
 const partnerFilter = ref('all')
 const projectSearchDraft = ref('')
@@ -104,6 +109,25 @@ const filtered = computed(() =>
   })
 )
 
+const currentPage = ref(1)
+const projectsPerPage = 10
+
+const totalPages = computed(() =>
+  Math.max(1, Math.ceil(filtered.value.length / projectsPerPage))
+)
+
+const paginatedProjects = computed(() => {
+  const start = (currentPage.value - 1) * projectsPerPage
+  return filtered.value.slice(start, start + projectsPerPage)
+})
+
+watch(
+  [projectSearch, semFilter, statusFilter, partnerFilter],
+  () => {
+    currentPage.value = 1
+  }
+)
+
 function applyProjectSearch() {
   projectSearch.value = projectSearchDraft.value.trim()
   selectedProjects.value = []
@@ -128,8 +152,15 @@ function peerLeadId(projectId: string, semesterId: string) {
 }
 
 function openProject(projectId: string, projectSemesters: string[]) {
-  expanded.value = expanded.value === projectId ? null : projectId
-  selectedSemester.value[projectId] ??= projectSemesters[projectSemesters.length - 1]
+  const isOpening = expanded.value !== projectId
+  expanded.value = isOpening ? projectId : null
+
+  if (isOpening) {
+    selectedSemester.value[projectId] =
+      semFilter.value !== 'all' && projectSemesters.includes(semFilter.value)
+        ? semFilter.value
+        : projectSemesters[projectSemesters.length - 1] ?? ''
+  }
 }
 
 function selectedRoster(projectId: string) {
@@ -187,6 +218,53 @@ function rosterCount(projectId: string) {
 
 function semesterDetail(project: Project, semesterId: string) {
   return project.semesterDetails?.find(detail => detail.semesterId === semesterId)
+}
+
+function getProjectSemesterStatus(
+  project: Project,
+  semesterId: string
+): Project['status'] {
+  const savedStatus = semesterDetail(project, semesterId)?.status
+
+  // Preserve explicitly recorded special statuses.
+  if (
+    savedStatus === 'Paused' ||
+    savedStatus === 'Completed' ||
+    savedStatus === 'Dropped'
+  ) {
+    return savedStatus
+  }
+
+  const orderedSemesters = [...project.semesters].sort((a, b) => {
+    const getOrder = (id: string) => {
+      const year = Number(id.slice(-2))
+      const term = id.slice(0, -2)
+      const termOrder: Record<string, number> = {
+        SP: 1,
+        SU: 2,
+        FA: 3
+      }
+
+      return year * 10 + (termOrder[term] ?? 0)
+    }
+
+    return getOrder(a) - getOrder(b)
+  })
+
+  const firstSemester = orderedSemesters[0]
+  const lastSemester = orderedSemesters[orderedSemesters.length - 1]
+
+  // Apply the project's overall special status only to its last semester.
+  if (
+    semesterId === lastSemester &&
+    (project.status === 'Paused' ||
+      project.status === 'Completed' ||
+      project.status === 'Dropped')
+  ) {
+    return project.status
+  }
+
+  return semesterId === firstSemester ? 'New' : 'In Progress'
 }
 
 function contactForSemester(project: Project, semesterId: string) {
@@ -474,7 +552,9 @@ function confirmSaveSkills(project: Project, semesterId: string) {
     mentorName: existing?.mentorName ?? mentor.name,
     mentorEmail: existing?.mentorEmail ?? mentor.email,
     teamSkills: skills,
-  }
+    status: existing?.status,
+    statusNote: existing?.statusNote,
+}
   updateProject(project.id, {
     semesterDetails: [
       ...(project.semesterDetails ?? []).filter(item => item.semesterId !== semesterId),
@@ -483,6 +563,37 @@ function confirmSaveSkills(project: Project, semesterId: string) {
   })
   editingSkillsKey.value = null
   skillDraft.value = ''
+}
+function saveSemesterStatus(
+  project: Project,
+  semesterId: string,
+  status: Project['status'],
+  statusNote: string
+) {
+  const existing = semesterDetail(project, semesterId)
+  const contact = contactForSemester(project, semesterId)
+  const mentor = mentorForSemester(project, semesterId)
+
+  const detail: ProjectSemesterDetail = {
+    semesterId,
+    contactName: existing?.contactName ?? contact.name,
+    contactEmail: existing?.contactEmail ?? contact.email,
+    contactPhone: existing?.contactPhone ?? contact.phone,
+    mentorName: existing?.mentorName ?? mentor.name,
+    mentorEmail: existing?.mentorEmail ?? mentor.email,
+    teamSkills: existing?.teamSkills,
+    status,
+    statusNote,
+  }
+
+  updateProject(project.id, {
+    semesterDetails: [
+      ...(project.semesterDetails ?? []).filter(
+        item => item.semesterId !== semesterId
+      ),
+      detail,
+    ],
+  })
 }
 </script>
 
@@ -530,8 +641,11 @@ function confirmSaveSkills(project: Project, semesterId: string) {
           <label>
             <span>Status</span>
             <select v-model="project.status">
-              <option value="New">New</option><option value="In Progress">In Progress</option>
-              <option value="Active">Active</option><option value="Paused">Paused</option><option value="Completed">Completed</option>
+              <option value="New">New</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Paused">Paused</option>
+              <option value="Completed">Completed</option>
+              <option value="Dropped">Dropped</option>
             </select>
           </label>
           <label><span>Project Mentor</span><input v-model="project.mentorName" type="text" placeholder="Optional" /></label>
@@ -624,11 +738,11 @@ function confirmSaveSkills(project: Project, semesterId: string) {
       </select>
       <select v-model="statusFilter">
         <option value="all">All Statuses</option>
-        <option value="In Progress">In Progress</option>
         <option value="New">New</option>
-        <option value="Active">Active</option>
-        <option value="Completed">Completed</option>
+        <option value="In Progress">In Progress</option>
         <option value="Paused">Paused</option>
+        <option value="Completed">Completed</option>
+        <option value="Dropped">Dropped</option>
       </select>
       <select v-model="partnerFilter">
         <option value="all">All Partners</option>
@@ -659,7 +773,7 @@ function confirmSaveSkills(project: Project, semesterId: string) {
     </div>
 
     <div style="display:flex;flex-direction:column;gap:12px">
-      <div v-for="pr in filtered" :key="pr.id" class="stat-card" style="padding:0;overflow:hidden;cursor:pointer" @click="openProject(pr.id, pr.semesters)">
+      <div v-for="pr in paginatedProjects" :key="pr.id" class="stat-card" style="padding:0;overflow:hidden;cursor:pointer" @click="openProject(pr.id, pr.semesters)">
         <div style="padding:14px 20px;display:flex;align-items:center;gap:16px">
           <div class="project-selection" @click.stop>
             <input v-model="selectedProjects" type="checkbox" :value="pr.id" :aria-label="`Select ${pr.name}`" />
@@ -670,7 +784,16 @@ function confirmSaveSkills(project: Project, semesterId: string) {
                 <span v-if="pr.projectNumber" class="mono" style="color:#c45c1a">#{{ pr.projectNumber }}</span>
                 {{ pr.name }}
               </span>
-              <StatusBadge :status="pr.status" />
+              <StatusBadge
+                :status="getProjectSemesterStatus(
+                pr,
+                expanded === pr.id
+                  ? currentSemester(pr.id, pr.semesters)
+                  : semFilter !== 'all' && pr.semesters.includes(semFilter)
+                    ? semFilter
+                    : pr.semesters[pr.semesters.length - 1]
+                )"
+                />
               <button
                 class="pin-button"
                 :class="{ active: isPinned(pr.id) }"
@@ -686,16 +809,15 @@ function confirmSaveSkills(project: Project, semesterId: string) {
           </div>
           <div style="display:flex;gap:20px;align-items:center">
             <div style="text-align:center">
-              <div class="mono" style="font-weight:700;font-size:18px;color:#c45c1a">{{ pr.semesters.length }}</div>
+              <div class="mono" style="font-weight:700;font-size:18px;color:#c45c1a">
+                {{ pr.semesters.length }}
+              </div>
               <div style="font-size:10.5px;color:#5a6b52">semesters</div>
             </div>
-            <div style="text-align:center">
-              <div class="mono" style="font-weight:700;font-size:18px;color:#2d6a2d">
-                {{ rosterCount(pr.id) }}
-              </div>
-              <div style="font-size:10.5px;color:#5a6b52">students</div>
-            </div>
-            <span style="color:#5a6b52;font-size:18px">{{ expanded === pr.id ? '▲' : '▼' }}</span>
+
+            <span style="color:#5a6b52;font-size:18px">
+              {{ expanded === pr.id ? '▲' : '▼' }}
+            </span>
           </div>
         </div>
         <form
@@ -722,8 +844,11 @@ function confirmSaveSkills(project: Project, semesterId: string) {
             <label>
               <span>Status</span>
               <select v-model="editDraft.status">
-                <option value="New">New</option><option value="In Progress">In Progress</option>
-                <option value="Active">Active</option><option value="Paused">Paused</option><option value="Completed">Completed</option>
+                <option value="New">New</option>
+                <option value="In Progress">In Progress</option>
+                <option value="Paused">Paused</option>
+                <option value="Completed">Completed</option>
+                <option value="Dropped">Dropped</option>
               </select>
             </label>
             <label class="form-span-full"><span>Description</span><input v-model="editDraft.description" type="text" /></label>
@@ -779,6 +904,67 @@ function confirmSaveSkills(project: Project, semesterId: string) {
               {{ getSemesterLabel(semesterId) }}
             </button>
           </div>
+          <div style="padding:16px 0">
+            <div class="detail-label">Semester Status</div>
+
+            <select
+            style="width:220px;max-width:100%;padding:10px 12px;border:1px solid #cbd5c0;border-radius:8px;background:#ffffff;color:#1a3a1a;font-size:13px;font-weight:600;cursor:pointer"
+            :value="
+              semesterStatusDraft[`${pr.id}-${currentSemester(pr.id, pr.semesters)}`]
+              ?? semesterDetail(pr, currentSemester(pr.id, pr.semesters))?.status
+              ?? ''
+            "
+            @change="
+              semesterStatusDraft[`${pr.id}-${currentSemester(pr.id, pr.semesters)}`] =
+                ($event.target as HTMLSelectElement).value as Project['status']
+            "
+            >
+            <option value="" disabled>Select status</option>
+            <option value="New">New</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Paused">Paused</option>
+            <option value="Completed">Completed</option>
+            <option value="Dropped">Dropped</option>
+            </select>
+
+            <div class="detail-label" style="margin-top:12px">
+            Status Notes
+            </div>
+
+            <textarea
+            :value="
+              semesterNoteDraft[`${pr.id}-${currentSemester(pr.id, pr.semesters)}`]
+              ?? semesterDetail(pr, currentSemester(pr.id, pr.semesters))?.statusNote
+              ?? ''
+            "
+            @input="
+              semesterNoteDraft[`${pr.id}-${currentSemester(pr.id, pr.semesters)}`] =
+                ($event.target as HTMLTextAreaElement).value
+            "
+            placeholder="Optional notes about this semester's status"
+            rows="3"
+            style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;margin-top:6px;background:#ffffff;color:#1a3a1a;caret-color:#1a3a1a"
+            ></textarea>
+
+            <button
+            class="secondary-button"
+            style="margin-top:12px"
+            @click="
+              saveSemesterStatus(
+                pr,
+                currentSemester(pr.id, pr.semesters),
+                (semesterStatusDraft[`${pr.id}-${currentSemester(pr.id, pr.semesters)}`]
+                  ?? semesterDetail(pr, currentSemester(pr.id, pr.semesters))?.status)!,
+                semesterNoteDraft[`${pr.id}-${currentSemester(pr.id, pr.semesters)}`]
+                  ?? semesterDetail(pr, currentSemester(pr.id, pr.semesters))?.statusNote
+                  ?? ''
+              )
+            "
+            >
+            Save Semester Status
+            </button>
+            </div>
+
           <div class="project-detail-grid">
             <div class="project-roster">
               <div class="roster-heading">
@@ -814,7 +1000,7 @@ function confirmSaveSkills(project: Project, semesterId: string) {
                 />
                 <div>
                   <button class="record-link" @click="emit('openStudent', student.id)">{{ student.name }}</button>
-                  <div class="muted-cell">{{ student.major }} · {{ student.meetingDay }}</div>
+                  <div class="muted-cell">{{ student.major }}</div>
                 </div>
                 <span v-if="student.id === peerLeadId(pr.id, currentSemester(pr.id, pr.semesters))" class="badge badge-returning">Peer Lead</span>
               </div>
@@ -907,10 +1093,46 @@ function confirmSaveSkills(project: Project, semesterId: string) {
           </div>
         </div>
       </div>
-      <div v-if="!filtered.length" class="stat-card project-no-results">
+            <div v-if="!filtered.length" class="stat-card project-no-results">
         <strong>No projects found</strong>
         <span>Try a different project title, number, partner, mentor, or filter selection.</span>
         <button v-if="projectSearch" class="secondary-button" @click="clearProjectSearch">Clear Search</button>
+      </div>
+    </div>
+
+    <!-- Projects Pagination -->
+    <div
+      v-if="filtered.length > 0"
+      style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;padding:12px 4px"
+      >
+      <span style="font-size:13px;color:#5a6b52">
+        <template v-if="filtered.length === 0">
+          No projects found
+        </template>
+        <template v-else>
+          Showing
+          {{ (currentPage - 1) * projectsPerPage + 1 }}–{{ Math.min(currentPage * projectsPerPage, filtered.length) }}
+          of {{ filtered.length }} projects
+          (Page {{ currentPage }} of {{ totalPages }})
+        </template>
+      </span>
+
+      <div style="display:flex;gap:8px">
+        <button
+          class="secondary-button"
+          :disabled="currentPage === 1"
+          @click="currentPage--"
+        >
+          Previous
+        </button>
+
+        <button
+          class="secondary-button"
+          :disabled="currentPage === totalPages"
+          @click="currentPage++"
+        >
+          Next
+        </button>
       </div>
     </div>
   </div>
