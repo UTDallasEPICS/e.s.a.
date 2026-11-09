@@ -31,6 +31,6 @@ If you already have the project running, here's what's different for this branch
    pnpm dev
    ```
 
-If your Node 22 is installed through Homebrew, step 4 will pin the right version automatically. If not, just make sure `node -v` says `v22.x` before running it.
+Make sure `node -v` says `v22.x` before running it.
 
 Everything else works the same as before.

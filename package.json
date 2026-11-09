@@ -3,12 +3,12 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "build": "PATH=\"$(brew --prefix node@22)/bin:$PATH\" nuxt build",
-    "dev": "PATH=\"$(brew --prefix node@22)/bin:$PATH\" nuxt dev",
-    "generate": "PATH=\"$(brew --prefix node@22)/bin:$PATH\" nuxt generate",
-    "preview": "PATH=\"$(brew --prefix node@22)/bin:$PATH\" nuxt preview",
-    "postinstall": "PATH=\"$(brew --prefix node@22)/bin:$PATH\" nuxt prepare",
-    "prisma:reset": "PATH=\"$(brew --prefix node@22)/bin:$PATH\" bash -c 'prisma migrate reset -f && prisma migrate dev && prisma generate && prisma db seed'"
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare",
+    "prisma:reset": "prisma migrate reset -f && prisma migrate dev && prisma generate && prisma db seed"
   },
   "engines": {
     "node": "22.x"

@@ -77,6 +77,57 @@
     }
   }
 
+  // Pin is purely visual — a way to flag "I'm considering this one" before
+  // committing. It never touches the database or the algorithm on its own; only
+  // "Lock All Pinned" below actually locks anything. Remembered per-viewer via
+  // localStorage, same as it's just a display preference.
+  const pinnedTeamIds = ref<Set<string>>(new Set())
+  onMounted(() => {
+    try {
+      const saved = localStorage.getItem('esa-pinned-teams')
+      if (saved) pinnedTeamIds.value = new Set(JSON.parse(saved))
+    } catch {
+      // localStorage unavailable — just start with nothing pinned.
+    }
+  })
+  function persistPins() {
+    try {
+      localStorage.setItem('esa-pinned-teams', JSON.stringify([...pinnedTeamIds.value]))
+    } catch {
+      // ignore — nothing to persist to
+    }
+  }
+  function isPinned(teamId: string) {
+    return pinnedTeamIds.value.has(teamId)
+  }
+  function togglePin(teamId: string) {
+    const next = new Set(pinnedTeamIds.value)
+    if (next.has(teamId)) next.delete(teamId)
+    else next.add(teamId)
+    pinnedTeamIds.value = next
+    persistPins()
+  }
+
+  const lockingAllPinned = ref(false)
+  async function lockAllPinned() {
+    lockingAllPinned.value = true
+    teamLockError.value = null
+    try {
+      for (const teamId of pinnedTeamIds.value) {
+        if (!isTeamLocked(teamId)) {
+          await $fetch('/api/team-formation/lock-team', { method: 'POST', body: { teamId, locked: true } })
+        }
+      }
+      pinnedTeamIds.value = new Set()
+      persistPins()
+      await Promise.all([refreshProjectsForSemester(), refreshStudentsForSemester()])
+    } catch (e: any) {
+      teamLockError.value = e?.data?.message ?? e?.message ?? 'Failed to lock pinned teams.'
+    } finally {
+      lockingAllPinned.value = false
+    }
+  }
+
   const { data: studentsForSemester, refresh: refreshStudentsForSemester } = useFetch<
     StudentRead[]
   >('/api/students', {
@@ -233,26 +284,23 @@
     }
   }
 
-  // ── 3200 lock-in ──────────────────────────────────────────────────────────────
+  // ── Step-by-step page layout ─────────────────────────────────────────────────
 
-  // Purely visual — collapsing this section never touches lockSelections,
-  // suggestions, or anything already locked in the database. Remembered across
-  // reloads via localStorage since it's just a per-viewer display preference.
-  const lockSectionCollapsed = ref(false)
-  onMounted(() => {
-    try {
-      lockSectionCollapsed.value = localStorage.getItem('esa-lock-section-collapsed') === 'true'
-    } catch {
-      // localStorage unavailable (private browsing, etc.) — just stay expanded.
-    }
+  // Only one section's body is expanded at a time — purely visual, never touches
+  // any selection, lock, or data underneath. Clicking any section's header jumps
+  // straight to it, so nothing is ever permanently hidden or enforced in order.
+  const activeSection = ref(1)
+
+  // Auto-advance on natural completion, but only forward and only from the section
+  // that triggered it — never yanks someone away from a section they've gone back to.
+  watch(semesterId, (val) => {
+    if (val && activeSection.value === 1) activeSection.value = 2
   })
-  watch(lockSectionCollapsed, (val) => {
-    try {
-      localStorage.setItem('esa-lock-section-collapsed', String(val))
-    } catch {
-      // ignore — nothing to persist to
-    }
+  watch(uploadResult, (val) => {
+    if (val && activeSection.value === 2) activeSection.value = 3
   })
+
+  // ── 3200 lock-in ──────────────────────────────────────────────────────────────
 
   const students3200ForDay = computed(() =>
     studentsForSemester.value.filter((s) => {
@@ -357,7 +405,7 @@
     lockError.value = null
     try {
       await $fetch('/api/team-formation/lock', { method: 'POST', body: { teamId, studentId } })
-      await refreshStudentsForSemester()
+      await Promise.all([refreshProjectsForSemester(), refreshStudentsForSemester()])
     } catch (e: any) {
       lockError.value = e?.data?.message ?? e?.message ?? 'Failed to lock student.'
     } finally {
@@ -370,7 +418,7 @@
     lockError.value = null
     try {
       await $fetch('/api/team-formation/lock', { method: 'DELETE', body: { membershipId } })
-      await refreshStudentsForSemester()
+      await Promise.all([refreshProjectsForSemester(), refreshStudentsForSemester()])
     } catch (e: any) {
       lockError.value = e?.data?.message ?? e?.message ?? 'Failed to unlock student.'
     } finally {
@@ -440,19 +488,28 @@
     lockError.value = null
     try {
       for (const studentId of studentIds) {
-        await $fetch('/api/team-formation/lock', {
-          method: 'POST',
-          body: { teamId: suggestions[studentId]!.teamId, studentId },
-        })
+        // Staff may have changed the dropdown after the suggestion pre-filled it.
+        const teamId = lockSelections[studentId] ?? suggestions[studentId]!.teamId
+        await $fetch('/api/team-formation/lock', { method: 'POST', body: { teamId, studentId } })
         delete suggestions[studentId]
       }
-      await refreshStudentsForSemester()
     } catch (e: any) {
       lockError.value = e?.data?.message ?? e?.message ?? 'Failed to lock all suggested students.'
     } finally {
+      // Refresh even on partial failure so already-locked students show as locked.
+      await Promise.all([refreshProjectsForSemester(), refreshStudentsForSemester()])
       lockingAllSuggested.value = false
     }
   }
+
+  // Suggestions and picks belong to one semester/day. Drop them when either changes so
+  // Lock All Suggested can't lock students into the previous selection's teams.
+  watch([semesterId, meetingDay], () => {
+    for (const key of Object.keys(suggestions)) delete suggestions[key]
+    for (const key of Object.keys(lockSelections)) delete lockSelections[key]
+    noChoiceStudentIds.value = new Set()
+    usedFallbackThirdChoice.value = false
+  })
 
   // ── Team generation ──────────────────────────────────────────────────────────
 
@@ -464,44 +521,104 @@
     balance_gender: true,
   })
 
-  // 0 means no minimum enforced. Requiring a 3200 on every team is tight by nature
-  // (needs roughly one 3200 per team) and can make a solve infeasible if there
-  // genuinely aren't enough 3200 students to go around, so it defaults off.
+  // Defaults to 1 (every team needs a 3200) per the solver's own default — set to 0
+  // yourself if there genuinely aren't enough 3200 students to go around this semester.
   const minUpperclassPerProject = ref(1)
 
   const generating = ref(false)
   const generateError = ref<string | null>(null)
+  interface ResultStudent {
+    id: string
+    firstName: string
+    lastName: string
+    netID: string
+    Choices: { projectId: string; rank: number }[]
+    Enrollments: { semesterId: string; class: string; major: string }[]
+  }
   interface GenerateResponse {
-    teamAssignments: Record<
-      string,
-      {
-        id: string
-        firstName: string
-        lastName: string
-        netID: string
-        Choices: { projectId: string; rank: number }[]
-        Enrollments: { semesterId: string; class: string }[]
-      }[]
-    >
+    teamAssignments: Record<string, ResultStudent[]>
     projects: { id: string; name: string }[]
     teamMeta: Record<string, { projectId: string; meetingDay: MeetingDay; projectName: string }>
   }
   const generateResult = ref<GenerateResponse | null>(null)
 
-  function is3200(student: { Enrollments: { semesterId: string; class: string }[] }) {
+  function is3200(student: ResultStudent) {
     return student.Enrollments.find((e) => e.semesterId === semesterId.value)?.class === 'EPCS_3200'
+  }
+  function majorFor(student: ResultStudent) {
+    return student.Enrollments.find((e) => e.semesterId === semesterId.value)?.major ?? 'Unknown'
   }
   // Off by default so the results view doesn't dump everyone's full ranking in
   // staff's face — flip it on only if you actually want to see choice rank per student.
   const showChoiceRank = ref(false)
 
-  function choiceRankLabel(
-    student: { Choices: { projectId: string; rank: number }[] },
-    teamId: string
-  ) {
+  function choiceRankLabel(student: ResultStudent, teamId: string) {
     const projectId = generateResult.value?.teamMeta[teamId]?.projectId
     const choice = student.Choices.find((c) => c.projectId === projectId)
     return choice ? `${ordinal(choice.rank)} choice` : 'not ranked'
+  }
+
+  // ── Move a student after results are already in ─────────────────────────────
+  // Deliberately free-floating by default: moving someone here does NOT lock them
+  // in (unless the staff member checks the box), so it stays as flexible as an
+  // unassigned student — a future Generate Teams run can still touch them, or
+  // staff can move them again just as easily.
+
+  function resultChoiceLabels(student: ResultStudent) {
+    return student.Choices.slice()
+      .sort((a, b) => a.rank - b.rank)
+      .map((c) => generateResult.value?.projects.find((p) => p.id === c.projectId)?.name ?? '')
+      .filter(Boolean)
+  }
+
+  function resultTeamOptionsFor(student: ResultStudent) {
+    const rankByProjectName = new Map(resultChoiceLabels(student).map((name, i) => [name, i + 1]))
+    return Object.entries(generateResult.value?.teamMeta ?? {})
+      .map(([teamId, meta]) => ({ teamId, name: meta.projectName, rank: rankByProjectName.get(meta.projectName) }))
+      .sort((a, b) => (a.rank ?? Infinity) - (b.rank ?? Infinity))
+      .map(({ teamId, name, rank }) => ({
+        label: rank ? `${rank}. ${name}` : `Not ranked: ${name}`,
+        value: teamId,
+      }))
+  }
+
+  const openMovePanel = ref<string | null>(null)
+  const moveSelections = reactive<Record<string, string>>({})
+  const moveLockChecked = reactive<Record<string, boolean>>({})
+  const movingKey = ref<string | null>(null)
+  const moveError = ref<string | null>(null)
+
+  async function moveStudent(studentId: string, fromTeamId: string) {
+    const teamId = moveSelections[studentId]
+    if (!teamId || teamId === fromTeamId) return
+    movingKey.value = studentId
+    moveError.value = null
+    try {
+      await $fetch('/api/team-formation/lock', {
+        method: 'POST',
+        body: { teamId, studentId, locked: !!moveLockChecked[studentId] },
+      })
+      // Reflect the move in the results view directly — no need to re-run the
+      // solver just to show someone in their new team.
+      if (generateResult.value) {
+        const fromList = generateResult.value.teamAssignments[fromTeamId]
+        const idx = fromList?.findIndex((s) => s.id === studentId) ?? -1
+        if (idx !== -1 && fromList) {
+          const [moved] = fromList.splice(idx, 1)
+          if (moved) {
+            generateResult.value.teamAssignments[teamId] ??= []
+            generateResult.value.teamAssignments[teamId]!.push(moved)
+          }
+        }
+      }
+      delete moveSelections[studentId]
+      openMovePanel.value = null
+      await Promise.all([refreshProjectsForSemester(), refreshStudentsForSemester()])
+    } catch (e: any) {
+      moveError.value = e?.data?.message ?? e?.message ?? 'Failed to move student.'
+    } finally {
+      movingKey.value = null
+    }
   }
 
   const canGenerate = computed(() => !!semesterId.value && teamsForDay.value.length > 0)
@@ -544,27 +661,49 @@
 <template>
   <UContainer class="max-w-4xl space-y-10 py-8">
     <section class="space-y-4">
-      <h2 class="text-lg font-semibold">1. Semester & Meeting Day</h2>
+      <div class="flex cursor-pointer items-center justify-between gap-2" @click="activeSection = 1">
+        <h2 class="text-lg font-semibold">1. Semester & Meeting Day</h2>
+        <UIcon :name="activeSection === 1 ? 'i-heroicons-chevron-up' : 'i-heroicons-chevron-down'" />
+      </div>
 
-      <UFormField label="Semester">
-        <SemesterFilter v-model="semesterId" />
-      </UFormField>
+      <template v-if="activeSection === 1">
+        <UFormField label="Semester">
+          <SemesterFilter v-model="semesterId" />
+        </UFormField>
 
-      <UFormField label="Meeting Day">
-        <URadioGroup v-model="meetingDay" orientation="horizontal" :items="MEETING_DAY_OPTIONS" />
-      </UFormField>
+        <UFormField label="Meeting Day">
+          <URadioGroup v-model="meetingDay" orientation="horizontal" :items="MEETING_DAY_OPTIONS" />
+        </UFormField>
 
-      <UButton
-        label="Export Teams"
-        icon="i-heroicons-arrow-down-tray"
-        color="neutral"
-        variant="soft"
-        :disabled="!canExport"
-        @click="exportTeams"
-      />
+        <UButton
+          label="Export Teams"
+          icon="i-heroicons-arrow-down-tray"
+          color="neutral"
+          variant="soft"
+          :disabled="!canExport"
+          @click="exportTeams"
+        />
+      </template>
 
       <div v-if="semesterId" class="space-y-2">
-        <h3 class="font-medium">Teams already entered for this semester/day</h3>
+        <div class="flex items-center justify-between gap-2">
+          <h3 class="font-medium">Teams already entered for this semester/day</h3>
+          <UButton
+            v-if="pinnedTeamIds.size"
+            :label="`Lock All Pinned (${pinnedTeamIds.size})`"
+            icon="i-heroicons-lock-closed"
+            size="xs"
+            :loading="lockingAllPinned"
+            @click="lockAllPinned"
+          />
+        </div>
+        <UAlert
+          v-if="teamLockError"
+          color="error"
+          variant="subtle"
+          title="Could not update team lock"
+          :description="teamLockError"
+        />
         <UAlert
           v-if="projectsStatus !== 'pending' && !teamsForDay.length"
           icon="i-heroicons-exclamation-triangle"
@@ -572,13 +711,6 @@
           variant="subtle"
           title="No teams found"
           description="Create projects and teams for this semester/day in the Database tab before continuing."
-        />
-        <UAlert
-          v-if="teamLockError"
-          color="error"
-          variant="subtle"
-          title="Could not update team lock"
-          :description="teamLockError"
         />
 
         <ul v-else class="space-y-1">
@@ -590,9 +722,18 @@
             <span>
               {{ team.projectName }} ({{ team.partnerName }})
               <UBadge v-if="isTeamLocked(team.id)" color="primary" variant="subtle" size="sm">Locked</UBadge>
+              <UBadge v-if="isPinned(team.id)" color="warning" variant="subtle" size="sm">Pinned</UBadge>
             </span>
             <div class="flex items-center gap-2">
               <span class="text-gray-500">{{ team.memberCount }} member(s)</span>
+              <UButton
+                :icon="isPinned(team.id) ? 'i-heroicons-bookmark-slash' : 'i-heroicons-bookmark'"
+                :label="isPinned(team.id) ? 'Unpin' : 'Pin'"
+                size="xs"
+                color="warning"
+                variant="ghost"
+                @click="togglePin(team.id)"
+              />
               <UButton
                 v-if="team.memberCount > 0"
                 :label="isTeamLocked(team.id) ? 'Unlock Team' : 'Lock Team'"
@@ -611,8 +752,12 @@
     <USeparator />
 
     <section class="space-y-4">
-      <h2 class="text-lg font-semibold">2. Bid File</h2>
+      <div class="flex cursor-pointer items-center justify-between gap-2" @click="activeSection = 2">
+        <h2 class="text-lg font-semibold">2. Bid File</h2>
+        <UIcon :name="activeSection === 2 ? 'i-heroicons-chevron-up' : 'i-heroicons-chevron-down'" />
+      </div>
 
+      <template v-if="activeSection === 2">
       <UFormField label="Bid Response CSV">
         <UFileUpload
           v-model="bidFile"
@@ -682,28 +827,18 @@
           :description="uploadResult.skippedStudents.join(', ')"
         />
       </div>
+      </template>
     </section>
 
     <USeparator />
 
     <section class="space-y-4">
-      <div class="flex items-center justify-between gap-2">
+      <div class="flex cursor-pointer items-center justify-between gap-2" @click="activeSection = 3">
         <h2 class="text-lg font-semibold">3. Lock 3200 Students</h2>
-        <UButton
-          :label="lockSectionCollapsed ? 'Show' : 'Hide'"
-          :icon="lockSectionCollapsed ? 'i-heroicons-chevron-down' : 'i-heroicons-chevron-up'"
-          size="xs"
-          color="neutral"
-          variant="ghost"
-          @click="lockSectionCollapsed = !lockSectionCollapsed"
-        />
+        <UIcon :name="activeSection === 3 ? 'i-heroicons-chevron-up' : 'i-heroicons-chevron-down'" />
       </div>
 
-      <p v-if="lockSectionCollapsed" class="text-sm text-gray-500">
-        Hidden. Your locks and selections are untouched. Click "Show" to bring it back.
-      </p>
-
-      <div v-else class="space-y-4">
+      <template v-if="activeSection === 3">
       <p class="text-sm text-gray-500">
         Place specific 3200 students into a team ahead of time. Locked students are
         skipped by the solver below and kept as is. Everyone else, including any
@@ -754,11 +889,11 @@
         guaranteeing each one their 1st or 2nd choice whenever possible, and pre-fills
         the team below with a reason. Review it, then lock individually or all at once.
         Max above also applies when you hit Generate Teams later, so a popular project
-        can't absorb all the 3200s and leave another project without one. Min is 0 by
-        default (no requirement) since it's tight by nature (roughly one 3200 per
-        project) and only applies to Generate Teams. Set it above 0 if you want every
-        project guaranteed that many. It fails with a clear message if there genuinely
-        aren't enough 3200 students to meet it.
+        can't absorb all the 3200s and leave another project without one. Min is 1 by
+        default (every project gets a 3200) and only applies to Generate Teams. It's
+        tight by nature (roughly one 3200 per project), so set it to 0 to turn it off.
+        Generation fails with a clear message if there genuinely aren't enough 3200
+        students to meet it.
       </p>
 
       <UAlert
@@ -785,7 +920,7 @@
       />
 
       <p
-        v-else-if="semesterId && !students3200ForDay.length"
+        v-if="semesterId && !students3200ForDay.length"
         class="text-sm text-gray-500"
       >
         No 3200 students enrolled for this semester/day.
@@ -842,13 +977,18 @@
           </div>
         </li>
       </ul>
-      </div>
+      </template>
     </section>
 
     <USeparator />
 
     <section class="space-y-4">
-      <h2 class="text-lg font-semibold">4. Team Generation</h2>
+      <div class="flex cursor-pointer items-center justify-between gap-2" @click="activeSection = 4">
+        <h2 class="text-lg font-semibold">4. Team Generation</h2>
+        <UIcon :name="activeSection === 4 ? 'i-heroicons-chevron-up' : 'i-heroicons-chevron-down'" />
+      </div>
+
+      <template v-if="activeSection === 4">
 
       <div class="grid grid-cols-2 gap-4">
         <UFormField label="Min Team Size">
@@ -898,9 +1038,11 @@
       <div v-if="generateResult" class="space-y-4">
         <UAlert color="success" variant="subtle" title="Teams generated successfully" />
         <p class="text-sm text-gray-500">
-          Happy with a team? Lock it, then hit Generate Teams again. Locked teams are
-          left exactly as is, and the algorithm only re-solves for everyone else. Keep
-          locking and regenerating as many rounds as you want.
+          Happy with a team? Lock it, then hit Generate Teams again. Locked members stay
+          where they are and the algorithm only re-solves for everyone else. A locked
+          team with spare seats can still receive new students; to keep it exactly as
+          is, lock it once it is full. Keep locking and regenerating as many rounds as
+          you want.
         </p>
 
         <UCheckbox
@@ -915,6 +1057,13 @@
           title="Could not update team lock"
           :description="teamLockError"
         />
+        <UAlert
+          v-if="moveError"
+          color="error"
+          variant="subtle"
+          title="Could not move student"
+          :description="moveError"
+        />
 
         <div class="space-y-2">
           <div
@@ -926,28 +1075,76 @@
               <div class="flex items-center gap-2 font-medium">
                 {{ meta.projectName }}
                 <UBadge v-if="isTeamLocked(teamId)" color="primary" variant="subtle" size="sm">Locked</UBadge>
+                <UBadge v-if="isPinned(teamId)" color="warning" variant="subtle" size="sm">Pinned</UBadge>
               </div>
-              <UButton
-                :label="isTeamLocked(teamId) ? 'Unlock Team' : 'Lock Team'"
-                size="xs"
-                :color="isTeamLocked(teamId) ? 'neutral' : 'primary'"
-                :variant="isTeamLocked(teamId) ? 'soft' : 'solid'"
-                :loading="lockingTeamKey === teamId"
-                @click="toggleTeamLock(teamId, !isTeamLocked(teamId))"
-              />
+              <div class="flex items-center gap-2">
+                <UButton
+                  :icon="isPinned(teamId) ? 'i-heroicons-bookmark-slash' : 'i-heroicons-bookmark'"
+                  :label="isPinned(teamId) ? 'Unpin' : 'Pin'"
+                  size="xs"
+                  color="warning"
+                  variant="ghost"
+                  @click="togglePin(teamId)"
+                />
+                <UButton
+                  :label="isTeamLocked(teamId) ? 'Unlock Team' : 'Lock Team'"
+                  size="xs"
+                  :color="isTeamLocked(teamId) ? 'neutral' : 'primary'"
+                  :variant="isTeamLocked(teamId) ? 'soft' : 'solid'"
+                  :loading="lockingTeamKey === teamId"
+                  @click="toggleTeamLock(teamId, !isTeamLocked(teamId))"
+                />
+              </div>
             </div>
-            <ul class="text-sm text-gray-600 dark:text-gray-400">
+            <ul class="space-y-1 text-sm text-gray-600 dark:text-gray-400">
               <li v-for="student in studentsFor(teamId)" :key="student.netID">
-                {{ student.firstName }} {{ student.lastName }} ({{ student.netID }})
-                <UBadge v-if="is3200(student)" color="primary" variant="subtle" size="sm">3200</UBadge>
-                <span v-if="showChoiceRank" class="text-gray-400">
-                  ({{ choiceRankLabel(student, teamId) }})
-                </span>
+                <div class="flex items-center justify-between gap-2">
+                  <span>
+                    {{ student.firstName }} {{ student.lastName }} ({{ student.netID }})
+                    <UBadge v-if="is3200(student)" color="primary" variant="subtle" size="sm">3200</UBadge>
+                    <span v-if="showChoiceRank" class="text-gray-400">
+                      ({{ choiceRankLabel(student, teamId) }})
+                    </span>
+                  </span>
+                  <UButton
+                    label="Move"
+                    size="xs"
+                    color="neutral"
+                    variant="ghost"
+                    @click="openMovePanel = openMovePanel === student.id ? null : student.id"
+                  />
+                </div>
+                <div
+                  v-if="openMovePanel === student.id"
+                  class="ml-2 mt-1 space-y-2 rounded border border-gray-200 p-2 text-xs dark:border-gray-800"
+                >
+                  <div class="text-gray-500">
+                    Major: {{ majorFor(student) }}. Choices:
+                    {{ resultChoiceLabels(student).join(', ') || 'none' }}
+                  </div>
+                  <div class="flex flex-wrap items-center gap-2">
+                    <USelect
+                      v-model="moveSelections[student.id]"
+                      :items="resultTeamOptionsFor(student)"
+                      placeholder="Move to..."
+                      class="w-56"
+                    />
+                    <UCheckbox v-model="moveLockChecked[student.id]" label="Lock in new team" />
+                    <UButton
+                      label="Confirm Move"
+                      size="xs"
+                      :disabled="!moveSelections[student.id] || moveSelections[student.id] === teamId"
+                      :loading="movingKey === student.id"
+                      @click="moveStudent(student.id, teamId)"
+                    />
+                  </div>
+                </div>
               </li>
             </ul>
           </div>
         </div>
       </div>
+      </template>
     </section>
   </UContainer>
 </template>
