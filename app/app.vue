@@ -1,6 +1,10 @@
 <script setup lang="ts">
   const colorMode = useColorMode()
 
+  // Team Formation has its own side menu (≡) instead of the top bar.
+  const route = useRoute()
+  const showHeader = computed(() => route.path !== '/team-formation')
+
   const isDark = computed({
     get() {
       return colorMode.value === 'dark'
@@ -17,6 +21,7 @@
       class="flex min-h-screen flex-col bg-white text-gray-900 transition-colors duration-300 dark:bg-gray-900 dark:text-gray-100"
     >
       <header
+        v-if="showHeader"
         class="sticky top-0 z-50 border-b border-gray-200 bg-white/75 backdrop-blur-md dark:border-gray-800 dark:bg-gray-900/75"
       >
         <UContainer class="flex h-16 items-center justify-between gap-4">

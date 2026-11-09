@@ -29,6 +29,15 @@ export type Student = {
   previousProject?: string;
   gender: Gender;
   day?: "Wednesday" | "Thursday";
+  // Semesters enrolled before this one, and how many of those were 3200. Only used to
+  // break ties between students who want the same project.
+  priorSemesters?: number;
+  prior3200Semesters?: number;
+  // Free-text skills from the bid form. Used with Project.skills for the last-level tie-break.
+  skills?: string;
+  // Optional precomputed skill fit (0..1) per project name, e.g. from the LLM scorer. When
+  // absent the solver computes a local TF-IDF cosine from `skills` itself.
+  skillScores?: Record<string, number>;
 };
 
 export type Project = {
@@ -42,6 +51,8 @@ export type Project = {
   // Of those locked students, how many are 3200-level — counted separately against
   // max_upperclass_per_project (which only caps 3200s, not the team as a whole).
   lockedUpperclassCount?: number;
+  // Skills the project needs (comma separated). Empty = no skill signal for tie-breaks.
+  skills?: string;
 };
 
 // Defines a mapping from project names to lists of students (team assignments).
@@ -196,12 +207,17 @@ export async function generateTeamsORTools(
       previousProject: s.previousProject,
       gender: s.gender,
       day: s.day,
+      priorSemesters: s.priorSemesters ?? 0,
+      prior3200Semesters: s.prior3200Semesters ?? 0,
+      skills: s.skills ?? '',
+      skillScores: s.skillScores,
     })),
     projects: projects.map(p => ({
       id: p.id,
       name: p.name,
       type: p.type,
       day: p.day,
+      skills: p.skills ?? '',
       locked_count: p.lockedCount ?? 0,
       locked_upperclass_count: p.lockedUpperclassCount ?? 0,
     })),
@@ -251,9 +267,14 @@ export async function suggestUpperclassPlacements(
       id: s.id,
       choices: s.choices,
       previousProject: s.previousProject,
+      priorSemesters: s.priorSemesters ?? 0,
+      prior3200Semesters: s.prior3200Semesters ?? 0,
+      skills: s.skills ?? '',
+      skillScores: s.skillScores,
     })),
     projects: projects.map(p => ({
       name: p.name,
+      skills: p.skills ?? '',
       locked_count: p.lockedCount ?? 0,
       locked_upperclass_count: p.lockedUpperclassCount ?? 0,
     })),

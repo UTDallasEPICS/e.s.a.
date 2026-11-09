@@ -2,6 +2,10 @@
   import type { NavigationMenuItem } from '@nuxt/ui'
   import { authClient } from '../utils/auth-client'
 
+  const props = withDefaults(defineProps<{ orientation?: 'horizontal' | 'vertical' }>(), {
+    orientation: 'horizontal',
+  })
+
   const { data: session } = await authClient.useSession(useFetch)
 
   const items = computed<NavigationMenuItem[]>(() => [
@@ -20,7 +24,7 @@
 </script>
 
 <template>
-  <UNavigationMenu :items="items" class="w-full" />
+  <UNavigationMenu :items="items" :orientation="props.orientation" class="w-full" />
   <UButton
     label="Logout"
     icon="i-heroicons-arrow-right-on-rectangle"

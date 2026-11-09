@@ -1,0 +1,2 @@
+# Optional: only required for local embedding methods, not lexical baselines.
+sentence-transformers>=5.1,<6

@@ -105,6 +105,9 @@ model Project {
   type        ProjectType
   status      ProjectStatus
   repoURL     String
+  // Comma separated skills the project needs, e.g. "Python, React, SQL". Reviewed by hand;
+  // used only to break ties between students who want the same project.
+  skills      String        @default("")
   partnerId   String
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
@@ -178,6 +181,9 @@ model Enrollment {
   meetingDay ProjectMeetingDay
   skills     String            @default("") // comma separated list of skills, e.g. "Python, C++, Java"
   comments   String            @default("")
+  // Set by the bid importer when the student's row had no usable choice and was placed
+  // on a project that fits their major (server/utils/noBid.ts).
+  noBid      Boolean           @default(false)
   createdAt  DateTime          @default(now())
   updatedAt  DateTime          @updatedAt
 
@@ -213,11 +219,30 @@ model Semester {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  Teams       Team[]
-  Enrollments Enrollment[]
-  Choices     Choice[]
+  Teams        Team[]
+  Enrollments  Enrollment[]
+  Choices      Choice[]
+  BidFiles     BidFile[]
+  TeamVersions TeamVersion[]
 
   @@unique([year, season])
+}
+
+// The bid file last uploaded for a semester and meeting day, kept as it came in
+// so staff can check the right form was uploaded. `rows` is the file's rows as
+// JSON (one object per row, keyed by column name, in the file's column order).
+model BidFile {
+  id         String            @id @default(uuid())
+  semesterId String
+  meetingDay ProjectMeetingDay
+  fileName   String
+  rows       String
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  Semester Semester @relation(fields: [semesterId], references: [id], onDelete: Cascade)
+
+  @@unique([semesterId, meetingDay])
 }
 
 enum Year {
@@ -268,4 +293,27 @@ enum ProjectMeetingDay {
 enum Role {
   USER
   ADMIN
+}
+
+// A saved copy of one semester/day's team placements. The board itself is always
+// the version being worked on (number = latest saved + 1); saving freezes a copy.
+// Regenerating or going back to an older version saves the board first, so no
+// arrangement is ever lost.
+model TeamVersion {
+  id          String            @id @default(uuid())
+  semesterId  String
+  meetingDay  ProjectMeetingDay
+  number      Int
+  // Why it was saved, e.g. "Saved" or "Before regenerating".
+  note        String
+  // JSON: [{ teamId, studentId, locked }] for every non-mentor student placed.
+  memberships String
+  // The one version a day's teams are going with. Making it final locks every
+  // team on the board; the locks above are kept so "Not final" can put them back.
+  isFinal     Boolean           @default(false)
+  createdAt   DateTime          @default(now())
+
+  Semester Semester @relation(fields: [semesterId], references: [id], onDelete: Cascade)
+
+  @@unique([semesterId, meetingDay, number])
 }

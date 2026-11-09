@@ -10,6 +10,9 @@ import type {Student as CPSATStudent, Project as CPSATProject, Gender as CPSATGe
 import type {CPSATConfig} from '#server/services//CPSAT/ortools'
 import {Year, ProjectType, Choice, Project, Class, ProjectMeetingDay, Enrollment, Gender, Season} from '@@/prisma/generated/client'
 import {prisma} from '#server/utils/prisma'
+import teamVersionService from '#server/services/teamVersionService'
+import {getPriorExperience} from '#server/utils/priorExperience'
+import {computeSkillScoresDetailed, resolveProvider} from '#server/services/skillFitService'
 
 type MeetingDay = 'WEDNESDAY' | 'THURSDAY'
 
@@ -42,10 +45,12 @@ const mapGender = (gender: Gender): CPSATGender => {
 }
 
 export default defineEventHandler(async (event) => {
-  const {semesterId, day, config} = await readBody<{
+  const {semesterId, day, config, skillProvider} = await readBody<{
     semesterId: string;
     day: MeetingDay;
     config?: CPSATConfig
+    // 'tfidf' (default, local) or 'gemini' (optional LLM, needs GEMINI_API_KEY). Tie-break only.
+    skillProvider?: string
   }>(event)
 
   if (!semesterId) {
@@ -165,6 +170,8 @@ export default defineEventHandler(async (event) => {
     }
   }
 
+  const priorExperienceByStudentId = await getPriorExperience(students.map((s) => s.id), semesterId)
+
   // Map Prisma students → CPSAT Student type, excluding anyone already locked into a team
   const cpsatStudents: CPSATStudent[] = students.filter((s) => !lockedStudentIds.has(s.id)).map((s) => {
     // CPSAT expects project NAMES in choices (not IDs).
@@ -192,6 +199,8 @@ export default defineEventHandler(async (event) => {
       day: remapDay(s.Enrollments[0]!.meetingDay),
       gender: mapGender(s.Enrollments[0]!.gender),
       previousProject,
+      skills: s.Enrollments[0]!.skills ?? '',
+      ...priorExperienceByStudentId.get(s.id),
     }
   })
 
@@ -203,10 +212,22 @@ export default defineEventHandler(async (event) => {
       name: p.name,
       type: mapProjectType(p.type),
       day: remapDay(projectIdToDay.get(p.id)!),
+      skills: p.skills ?? '',
       lockedCount: lockedCountByTeamId.get(teamId) ?? 0,
       lockedUpperclassCount: lockedUpperclassCountByTeamId.get(teamId) ?? 0,
     }
   })
+
+  // Optional LLM skill fit for students competing for an over-subscribed project. Advisory and
+  // last-level tie-break only; with the default 'tfidf' provider this does nothing and the
+  // solver scores skill fit locally. Falls back to TF-IDF on any failure.
+  const {scores: skillScores, stats: skillTieBreak} = await computeSkillScoresDetailed(
+      resolveProvider(skillProvider),
+      cpsatStudents.map((s) => ({id: s.id, skills: s.skills ?? '', choices: s.choices})),
+      cpsatProjects.map((p) => ({name: p.name, skills: p.skills ?? ''})),
+      config?.max_team_size ?? 6
+  )
+  for (const s of cpsatStudents) if (skillScores[s.id]) s.skillScores = skillScores[s.id]
 
   // Run the CP-SAT algorithm (spawns a Python process)
   let cpsatResult
@@ -242,6 +263,9 @@ export default defineEventHandler(async (event) => {
       studentId: m.id,
     }))
   })
+  // Keep the board as it was before this run as a version, so a regenerate can be
+  // undone from the version menu. Does nothing on a first run (no one placed yet).
+  await teamVersionService.saveVersion(semesterId, day, 'Before regenerating')
   await prisma.$transaction([
     prisma.membership.deleteMany({
       where: {teamId: {in: teamsForRun.map((team) => team.id)}, isMentor: false, locked: false},
@@ -276,5 +300,25 @@ export default defineEventHandler(async (event) => {
       teamsForRun.map((team) => [team.id, {projectId: team.projectId, meetingDay: day, projectName: team.Project.name}])
   )
 
-  return {teamAssignments, projects, teamMeta}
+  // Where each no-bid student (see noBid.ts) ended up, and whether the solver kept them on the
+  // project the importer placed them on (their Choice 1) or moved them to satisfy team sizes.
+  const assignedProjectIdByStudentId = new Map<string, string>()
+  for (const [pId, members] of Object.entries(assignmentsByProjectId)) {
+    for (const m of members) assignedProjectIdByStudentId.set(m.id, pId)
+  }
+  const noBidPlacements = students
+      .filter((s) => s.Enrollments[0]?.noBid)
+      .map((s) => {
+        const assignedId = assignedProjectIdByStudentId.get(s.id)
+        return {
+          id: s.id,
+          name: `${s.firstName} ${s.lastName}`.trim(),
+          netID: s.netID,
+          major: s.Enrollments[0]!.major,
+          placedProject: mappedChoicesByStudentId.get(s.id)?.[0] ?? null,
+          assignedProject: assignedId ? (projectIdToName.get(assignedId) ?? null) : null,
+        }
+      })
+
+  return {teamAssignments, projects, teamMeta, noBidPlacements, skillTieBreak}
 })

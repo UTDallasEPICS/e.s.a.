@@ -9,6 +9,8 @@ import sys
 from typing import TypedDict, Optional
 from ortools.sat.python import cp_model
 
+from skill_match import skill_fit_table
+
 
 StudentDict = TypedDict('StudentDict', {
     'id': str,
@@ -20,6 +22,10 @@ StudentDict = TypedDict('StudentDict', {
     'previousProject': Optional[str],
     'gender': str,
     'day': Optional[str],
+    'priorSemesters': int,
+    'prior3200Semesters': int,
+    'skills': str,
+    'skillScores': dict,
 }, total=False)
 
 ProjectDict = TypedDict('ProjectDict', {
@@ -29,6 +35,7 @@ ProjectDict = TypedDict('ProjectDict', {
     'day': Optional[str],
     'locked_count': int,
     'locked_upperclass_count': int,
+    'skills': str,
 }, total=False)
 
 ConfigDict = TypedDict('ConfigDict', {
@@ -40,6 +47,31 @@ ConfigDict = TypedDict('ConfigDict', {
     'max_upperclass_per_project': int,
     'min_upperclass_per_project': int,
 }, total=False)
+
+
+# Every real score (choice rank, returning bonus, gender, major fit) is multiplied by this,
+# leaving room below it for tie-break points. Real scores are always multiples of 2.5, so
+# any real difference is at least 25,000,000 here, while one student's tie-break is at most
+# (19 x 100 + 99) x 6 = 11,994 — the tie-break can't outweigh a real point unless a day has
+# 2,000+ students.
+SCORE_SCALE = 10_000_000
+
+
+def tie_break_points(student: StudentDict, pref_index: int, skill_fit: float = 0.0) -> int:
+    """
+    Breaks ties between students who want the same project, in this order:
+      1. a student who has been in 3200 before beats a first-timer,
+      2. then more semesters in EPICS wins,
+      3. then the better skill fit (0..1) between the student's skills and the project's.
+    Weighted by how high the choice is, so the stronger student gets the better of two
+    choices. Experience moves in steps of 100 and skill fit adds at most 99, so a skill
+    fit can never outweigh a whole semester of experience.
+    """
+    if pref_index >= 6:
+        return 0
+    experience = (10 if student.get('prior3200Semesters', 0) > 0 else 0) + min(student.get('priorSemesters', 0), 9)
+    fit_points = round(max(0.0, min(1.0, skill_fit)) * 99)
+    return (experience * 100 + fit_points) * (6 - pref_index)
 
 
 def generate_teams(students_data: list[StudentDict], projects_data: list[ProjectDict], config: Optional[ConfigDict] = None):
@@ -77,6 +109,7 @@ def generate_teams(students_data: list[StudentDict], projects_data: list[Project
     # Create indices
     students = {s['id']: s for s in students_data}
     projects = {p['name']: p for p in projects_data}
+    fit_table = skill_fit_table(students_data, projects_data)  # last-level tie-break only
     student_ids = list(students.keys())
     project_names = list(projects.keys())
 
@@ -186,7 +219,8 @@ def generate_teams(students_data: list[StudentDict], projects_data: list[Project
                 if config.get('prioritize_returning_students', True) and is_returning and student['previousProject'] == p_name:
                     base_score *= 1.5
 
-                objective_terms.append(base_score * x[s_id][p_name])
+                score = round(base_score * SCORE_SCALE) + tie_break_points(student, pref_index, fit_table.get(s_id, {}).get(p_name, 0.0))
+                objective_terms.append(score * x[s_id][p_name])
 
     # SOFT CONSTRAINT: Gender balance (add penalty for imbalanced teams)
     if config.get('balance_gender', True):
@@ -225,8 +259,8 @@ def generate_teams(students_data: list[StudentDict], projects_data: list[Project
             model.Add(female_count != 1).OnlyEnforceIf(female_isolated.Not())
 
             # Apply penalty (negative score) for isolation
-            objective_terms.append(-500 * male_isolated)  # Penalty for 1 male among others
-            objective_terms.append(-500 * female_isolated)  # Penalty for 1 female among others
+            objective_terms.append(-500 * SCORE_SCALE * male_isolated)  # Penalty for 1 male among others
+            objective_terms.append(-500 * SCORE_SCALE * female_isolated)  # Penalty for 1 female among others
 
     # SOFT CONSTRAINT: Major fit based on project type (software/hardware adjacency)
     software_majors = {'CS', 'SE', 'DS'}
@@ -252,7 +286,7 @@ def generate_teams(students_data: list[StudentDict], projects_data: list[Project
                 bonus = 60
 
             if bonus > 0:
-                objective_terms.append(bonus * x[s_id][p_name])
+                objective_terms.append(bonus * SCORE_SCALE * x[s_id][p_name])
 
     # Maximize total satisfaction
     model.Maximize(sum(objective_terms))
@@ -278,7 +312,7 @@ def generate_teams(students_data: list[StudentDict], projects_data: list[Project
         return {
             'success': True,
             'teams': teams,
-            'score': solver.ObjectiveValue(),
+            'score': solver.ObjectiveValue() / SCORE_SCALE,
             'solve_time': solver.WallTime(),
             'status': 'optimal' if status == cp_model.OPTIMAL else 'feasible',
         }
@@ -367,6 +401,7 @@ def suggest_upperclass_placements(students_data: list[StudentDict], projects_dat
     with_choices = [s for s in students_data if s.get('choices')]
     without_choices_ids = [s['id'] for s in students_data if not s.get('choices')]
     students = {s['id']: s for s in with_choices}
+    fit_table = skill_fit_table(with_choices, projects_data)  # last-level tie-break only
     student_ids = list(students.keys())
 
     def try_solve(max_rank: int):
@@ -405,7 +440,8 @@ def suggest_upperclass_placements(students_data: list[StudentDict], projects_dat
                     base_score = max(0, 1000 - pref_index * 300)
                     if is_returning and student['previousProject'] == p_name:
                         base_score *= 1.5
-                    objective_terms.append(base_score * x[s_id][p_name])
+                    score = round(base_score * SCORE_SCALE) + tie_break_points(student, pref_index, fit_table.get(s_id, {}).get(p_name, 0.0))
+                    objective_terms.append(score * x[s_id][p_name])
         model.Maximize(sum(objective_terms))
 
         solver = cp_model.CpSolver()

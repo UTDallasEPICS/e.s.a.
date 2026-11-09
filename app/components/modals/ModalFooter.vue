@@ -5,7 +5,7 @@
     defineProps<{
       confirmLabel?: string
       cancelLabel?: string
-      confirmColor?: 'primary' | 'error'
+      confirmColor?: 'primary' | 'error' | 'success' | 'neutral'
       disabled?: boolean
       /** Inside a UForm, Confirm must submit the form rather than emit. */
       submit?: boolean

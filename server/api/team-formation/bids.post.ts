@@ -19,6 +19,12 @@ import { prisma } from '#server/utils/prisma'
 import projectService from '#server/services/projectService'
 import partnerService from '#server/services/partnerService'
 import teamService from '#server/services/teamService'
+import bidFileService from '#server/services/bidFileService'
+import {
+  pickProjectForMajor,
+  placeholderNetID,
+  type PlacementCandidate,
+} from '#server/utils/noBid'
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -157,6 +163,7 @@ interface BidRecord {
   choices: string[]
   skills: string[]
   comments: string
+  noBid?: boolean
 }
 
 async function processBidRecord(
@@ -184,6 +191,7 @@ async function processBidRecord(
     class: record.class,
     skills: record.skills.join(', '),
     comments: record.comments,
+    noBid: record.noBid ?? false,
   }
   await prisma.enrollment.upsert({
     where: { studentId_semesterId: { studentId: student.id, semesterId } },
@@ -339,18 +347,45 @@ export default defineEventHandler(async (event) => {
   let choicesCreated = 0
   const skippedStudents: string[] = []
 
+  // Students whose row produced no usable choice (no bid). They are placed after every
+  // other row is read, so the teams their classmates bid on already exist.
+  const noBidRecords: BidRecord[] = []
+  // How many bidders have each project as Choice 1, so no-bid students can be spread out.
+  const firstChoiceLoad = new Map<string, number>()
+  // netIDs already written from a row with bids, so a blank duplicate row can't replace them.
+  const importedNetIDs = new Set<string>()
+  // Stand-in netIDs built from a name alone (no SSO ID, no email) seen in this upload.
+  const nameOnlyNetIDs = new Set<string>()
+
   for (const row of rows) {
-    const netID = readFirstValue(row, ['SSO ID', 'ssoid', 'netID', 'netid', 'id'])
+    // ── Build student record ─────────────────────────────────────────────────
+    const { firstName, lastName } = parseStudentName(row)
+    const email = readFirstValue(row, ['Student Email', 'student email', 'studentemail']) || null
+    // A row with only a name and major has no SSO ID. Reuse the student already stored
+    // under its email (Student.email is unique), else give it a stable stand-in netID.
+    // Only a row with neither an SSO ID nor a name is skipped.
+    let netID = readFirstValue(row, ['SSO ID', 'ssoid', 'netID', 'netid', 'id'])
+    if (!netID && (firstName || lastName)) {
+      const existing = email
+        ? await prisma.student.findUnique({ where: { email }, select: { netID: true } })
+        : null
+      netID = existing?.netID ?? placeholderNetID(firstName, lastName, email)
+      if (!email) {
+        // Two such rows with the same name can't be told apart; skip the repeat rather
+        // than overwrite the first student with it.
+        if (nameOnlyNetIDs.has(netID)) {
+          skippedStudents.push(`${firstName} ${lastName}`.trim() + ' (repeated name, no SSO ID or email)')
+          continue
+        }
+        nameOnlyNetIDs.add(netID)
+      }
+    }
     if (!netID) {
       skippedStudents.push(
         readFirstValue(row, ['Student Name', 'student name', 'name', 'fullName']) || '(no name)'
       )
       continue
     }
-
-    // ── Build student record ─────────────────────────────────────────────────
-    const { firstName, lastName } = parseStudentName(row)
-    const email = readFirstValue(row, ['Student Email', 'student email', 'studentemail']) || null
     const yearRaw = readFirstValue(row, ['Classification', 'classification']).toLowerCase()
     const year: Year = YEAR_MAP[yearRaw] ?? 'FRESHMAN'
     const cls = extractClass(readFirstValue(row, ['Enrollment', 'enrollment']))
@@ -404,10 +439,75 @@ export default defineEventHandler(async (event) => {
       skills,
       comments,
     }
+
+    // No bid: hold the record until every bidder has been read, then place it below.
+    if (!chosenProjectIds.length) {
+      noBidRecords.push(record)
+      continue
+    }
+
     await processBidRecord(semesterId, meetingDay, record)
+    importedNetIDs.add(netID)
     studentsImported++
     choicesCreated += chosenProjectIds.length
+    const firstChoice = chosenProjectIds[0]!
+    firstChoiceLoad.set(firstChoice, (firstChoiceLoad.get(firstChoice) ?? 0) + 1)
   }
+
+  // ── Place no-bid students ────────────────────────────────────────────────────
+  // Each one goes on a project that fits their major, written in as their Choice 1 so the
+  // solver (generate.post.ts) sees them as an ordinary bidder. Only teams for this
+  // semester + meeting day are candidates, which also keeps the solver's day constraint happy.
+  const noBidPlacements: { name: string; netID: string; major: string; projectName: string }[] = []
+  const noBidUnplaced: string[] = []
+
+  if (noBidRecords.length) {
+    const teamsForDay = await prisma.team.findMany({
+      where: { semesterId, meetingDay },
+      include: { Project: true },
+    })
+    const candidates: PlacementCandidate[] = teamsForDay.map((t) => ({
+      projectId: t.projectId,
+      projectName: t.Project.name,
+      type: t.Project.type,
+      load: firstChoiceLoad.get(t.projectId) ?? 0,
+    }))
+
+    for (const record of noBidRecords) {
+      // The same student also has a row with bids (or an earlier blank row) in this file.
+      if (importedNetIDs.has(record.netID)) continue
+      importedNetIDs.add(record.netID)
+
+      const pick = pickProjectForMajor(record.major, candidates)
+      const fullName = `${record.firstName} ${record.lastName}`.trim()
+
+      await processBidRecord(semesterId, meetingDay, {
+        ...record,
+        choices: pick ? [pick.projectId] : [],
+        noBid: true,
+      })
+      studentsImported++
+
+      if (pick) {
+        pick.load++
+        choicesCreated++
+        noBidPlacements.push({
+          name: fullName,
+          netID: record.netID,
+          major: record.major,
+          projectName: pick.projectName,
+        })
+      } else {
+        // No team exists for this semester/day yet, so there is nothing to place them on.
+        noBidUnplaced.push(fullName)
+      }
+    }
+  }
+
+  // Keep the file as uploaded (replacing the day's previous one) so staff can
+  // open it on the Bid Files step and check it's the right form.
+  const fileName = String(getQuery(event).fileName ?? '').trim() || 'bids.csv'
+  await bidFileService.saveBidFile(semesterId, meetingDay, fileName, rows)
 
   return {
     studentsImported,
@@ -416,5 +516,7 @@ export default defineEventHandler(async (event) => {
     projectsCreated,
     teamsCreated,
     skippedStudents,
+    noBidPlacements,
+    noBidUnplaced,
   }
 })

@@ -156,6 +156,7 @@ export const projectCreateSchema = z.object({
   type: projectTypeEnum,
   status: projectStatusEnum,
   repoURL: z.string(),
+  skills: z.string().optional(),
   partnerId: z.string(),
   Teams: z.array(nestedTeamCreateSchema).optional(),
 })
@@ -166,6 +167,7 @@ export const projectUpdateSchema = z.object({
   type: projectTypeEnum.optional(),
   status: projectStatusEnum.optional(),
   repoURL: z.string().optional(),
+  skills: z.string().optional(),
   partnerId: z.string().optional(),
 })
 

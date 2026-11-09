@@ -10,6 +10,7 @@ export interface ProjectRead {
   type: ProjectType;
   status: ProjectStatus;
   repoURL: string;
+  skills: string;
   partnerId: string;
   Partner: {id: string; name: string};
   Teams: TeamRead[];
@@ -21,6 +22,7 @@ export interface ProjectCreate {
   type: ProjectType;
   status: ProjectStatus;
   repoURL: string;
+  skills?: string;
   partnerId: string;
   Teams?: Omit<TeamCreate, 'projectId'>[];
 }
@@ -31,6 +33,7 @@ export interface ProjectUpdate {
   type?: ProjectType;
   status?: ProjectStatus;
   repoURL?: string;
+  skills?: string;
   partnerId?: string;
 }
 

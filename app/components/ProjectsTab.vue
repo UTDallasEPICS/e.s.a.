@@ -71,6 +71,7 @@
       enumColumn<ProjectRow>('type', 'Type', PROJECT_TYPE_OPTIONS),
       enumColumn<ProjectRow>('status', 'Status', PROJECT_STATUS_OPTIONS),
       textColumn<ProjectRow>('repoURL', 'GitHub Link', { sortable: false }),
+      textColumn<ProjectRow>('skills', 'Skills (tie-break)', { sortable: false }),
       textColumn<ProjectRow>('partnerId', 'Partner', {
         format: (_value, row) => row.Partner?.name ?? '',
         editable: {
@@ -113,6 +114,7 @@
       type: 'SOFTWARE',
       status: 'NEW',
       repoURL: '',
+      skills: '',
       partnerId: '',
       Partner: null,
       Teams: [],
@@ -140,6 +142,7 @@
         type: record.fields.type,
         status: record.fields.status,
         repoURL: record.fields.repoURL ?? '',
+        skills: record.fields.skills ?? '',
         partnerId: record.fields.partnerId,
         Teams: teams.map((team) => ({
           semesterId: team.fields.semesterId,

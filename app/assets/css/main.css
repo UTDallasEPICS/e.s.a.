@@ -4,3 +4,23 @@
 :root {
     --ui-container: 95%;
 }
+
+/* Show a hand cursor on anything clickable, and a "not allowed" cursor on
+   anything that's switched off. */
+@layer base {
+    button:not(:disabled),
+    [role='button']:not([aria-disabled='true']),
+    [role='checkbox'],
+    [role='radio'],
+    [role='tab'],
+    [role='combobox'],
+    label:has(input, button[role]),
+    summary {
+        cursor: pointer;
+    }
+    button:disabled,
+    [aria-disabled='true'],
+    [data-disabled] {
+        cursor: not-allowed;
+    }
+}

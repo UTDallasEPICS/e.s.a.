@@ -12,15 +12,18 @@ import {suggestUpperclassPlacements} from '#server/services/CPSAT/ortools'
 import type {Student as CPSATStudent, Project as CPSATProject} from '#server/services/CPSAT/ortools'
 import {Choice, Project, ProjectMeetingDay, Season} from '@@/prisma/generated/client'
 import {prisma} from '#server/utils/prisma'
+import {getPriorExperience} from '#server/utils/priorExperience'
+import {computeSkillScoresDetailed, resolveProvider} from '#server/services/skillFitService'
 
 type MeetingDay = 'WEDNESDAY' | 'THURSDAY'
 
 export default defineEventHandler(async (event) => {
-  const {semesterId, day, maxTeamSize, maxUpperclassPerProject} = await readBody<{
+  const {semesterId, day, maxTeamSize, maxUpperclassPerProject, skillProvider} = await readBody<{
     semesterId: string;
     day: MeetingDay;
     maxTeamSize?: number;
     maxUpperclassPerProject?: number;
+    skillProvider?: string;
   }>(event)
 
   if (!semesterId) {
@@ -112,6 +115,8 @@ export default defineEventHandler(async (event) => {
     }
   }
 
+  const priorExperienceByStudentId = await getPriorExperience(students.map((s) => s.id), semesterId)
+
   const cpsatStudents: CPSATStudent[] = students.map((s) => {
     const choices = mappedChoicesByStudentId.get(s.id) ?? []
     const priorProjectName = previousProjectByStudentId.get(s.id)
@@ -126,6 +131,8 @@ export default defineEventHandler(async (event) => {
       class: '3200',
       gender: 'Prefer not to say',
       previousProject,
+      skills: s.Enrollments[0]?.skills ?? '',
+      ...priorExperienceByStudentId.get(s.id),
     }
   })
 
@@ -133,9 +140,18 @@ export default defineEventHandler(async (event) => {
     id: t.Project.id,
     name: t.Project.name,
     type: 'Both',
+    skills: t.Project.skills ?? '',
     lockedCount: lockedCountByTeamId.get(t.id) ?? 0,
     lockedUpperclassCount: lockedUpperclassCountByTeamId.get(t.id) ?? 0,
   }))
+
+  const {scores: skillScores, stats: skillTieBreak} = await computeSkillScoresDetailed(
+    resolveProvider(skillProvider),
+    cpsatStudents.map((s) => ({id: s.id, skills: s.skills ?? '', choices: s.choices})),
+    cpsatProjects.map((p) => ({name: p.name, skills: p.skills ?? ''})),
+    maxTeamSize ?? 6
+  )
+  for (const s of cpsatStudents) if (skillScores[s.id]) s.skillScores = skillScores[s.id]
 
   let result
   try {
@@ -159,5 +175,6 @@ export default defineEventHandler(async (event) => {
     placements,
     noChoicesStudentIds: result.noChoicesStudentIds ?? [],
     usedFallbackThirdChoice: result.usedFallbackThirdChoice ?? false,
+    skillTieBreak,
   }
 })

@@ -1,0 +1,56 @@
+{
+  "students": [
+    {
+      "id": "synthetic-web",
+      "skills": [
+        "Python",
+        "React",
+        "SQL"
+      ]
+    },
+    {
+      "id": "synthetic-embedded",
+      "skills": "C++, Arduino, sensors"
+    },
+    {
+      "id": "synthetic-empty",
+      "skills": ""
+    }
+  ],
+  "projects": [
+    {
+      "id": "synthetic-dashboard",
+      "skills": "React, SQL, TypeScript"
+    },
+    {
+      "id": "synthetic-device",
+      "skills": [
+        "C++",
+        "Arduino",
+        "sensors"
+      ]
+    }
+  ],
+  "labels": [
+    {
+      "student_id": "synthetic-web",
+      "project_id": "synthetic-dashboard",
+      "rating": 2
+    },
+    {
+      "student_id": "synthetic-embedded",
+      "project_id": "synthetic-dashboard",
+      "rating": 0
+    },
+    {
+      "student_id": "synthetic-web",
+      "project_id": "synthetic-device",
+      "rating": 0
+    },
+    {
+      "student_id": "synthetic-embedded",
+      "project_id": "synthetic-device",
+      "rating": 3
+    }
+  ]
+}
