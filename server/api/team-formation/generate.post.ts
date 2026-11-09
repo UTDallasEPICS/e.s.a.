@@ -197,7 +197,7 @@ export default defineEventHandler(async (event) => {
 
   // Map Prisma projects → CPSAT Project type
   const cpsatProjects: CPSATProject[] = projects.map((p: Project) => {
-    const teamId = teamsForRun.find((t) => t.projectId === p.id)!.id
+    const teamId = projectIdToTeamId.get(p.id)!
     return {
       id: p.id,
       name: p.name,

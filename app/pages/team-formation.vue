@@ -405,7 +405,7 @@
     lockError.value = null
     try {
       await $fetch('/api/team-formation/lock', { method: 'POST', body: { teamId, studentId } })
-      await refreshStudentsForSemester()
+      await Promise.all([refreshProjectsForSemester(), refreshStudentsForSemester()])
     } catch (e: any) {
       lockError.value = e?.data?.message ?? e?.message ?? 'Failed to lock student.'
     } finally {
@@ -418,7 +418,7 @@
     lockError.value = null
     try {
       await $fetch('/api/team-formation/lock', { method: 'DELETE', body: { membershipId } })
-      await refreshStudentsForSemester()
+      await Promise.all([refreshProjectsForSemester(), refreshStudentsForSemester()])
     } catch (e: any) {
       lockError.value = e?.data?.message ?? e?.message ?? 'Failed to unlock student.'
     } finally {
@@ -488,19 +488,28 @@
     lockError.value = null
     try {
       for (const studentId of studentIds) {
-        await $fetch('/api/team-formation/lock', {
-          method: 'POST',
-          body: { teamId: suggestions[studentId]!.teamId, studentId },
-        })
+        // Staff may have changed the dropdown after the suggestion pre-filled it.
+        const teamId = lockSelections[studentId] ?? suggestions[studentId]!.teamId
+        await $fetch('/api/team-formation/lock', { method: 'POST', body: { teamId, studentId } })
         delete suggestions[studentId]
       }
-      await refreshStudentsForSemester()
     } catch (e: any) {
       lockError.value = e?.data?.message ?? e?.message ?? 'Failed to lock all suggested students.'
     } finally {
+      // Refresh even on partial failure so already-locked students show as locked.
+      await Promise.all([refreshProjectsForSemester(), refreshStudentsForSemester()])
       lockingAllSuggested.value = false
     }
   }
+
+  // Suggestions and picks belong to one semester/day. Drop them when either changes so
+  // Lock All Suggested can't lock students into the previous selection's teams.
+  watch([semesterId, meetingDay], () => {
+    for (const key of Object.keys(suggestions)) delete suggestions[key]
+    for (const key of Object.keys(lockSelections)) delete lockSelections[key]
+    noChoiceStudentIds.value = new Set()
+    usedFallbackThirdChoice.value = false
+  })
 
   // ── Team generation ──────────────────────────────────────────────────────────
 
@@ -689,19 +698,19 @@
           />
         </div>
         <UAlert
+          v-if="teamLockError"
+          color="error"
+          variant="subtle"
+          title="Could not update team lock"
+          :description="teamLockError"
+        />
+        <UAlert
           v-if="projectsStatus !== 'pending' && !teamsForDay.length"
           icon="i-heroicons-exclamation-triangle"
           color="warning"
           variant="subtle"
           title="No teams found"
           description="Create projects and teams for this semester/day in the Database tab before continuing."
-        />
-        <UAlert
-          v-if="teamLockError"
-          color="error"
-          variant="subtle"
-          title="Could not update team lock"
-          :description="teamLockError"
         />
 
         <ul v-else class="space-y-1">
@@ -869,11 +878,11 @@
         guaranteeing each one their 1st or 2nd choice whenever possible, and pre-fills
         the team below with a reason. Review it, then lock individually or all at once.
         Max above also applies when you hit Generate Teams later, so a popular project
-        can't absorb all the 3200s and leave another project without one. Min is 0 by
-        default (no requirement) since it's tight by nature (roughly one 3200 per
-        project) and only applies to Generate Teams. Set it above 0 if you want every
-        project guaranteed that many. It fails with a clear message if there genuinely
-        aren't enough 3200 students to meet it.
+        can't absorb all the 3200s and leave another project without one. Min is 1 by
+        default (every project gets a 3200) and only applies to Generate Teams. It's
+        tight by nature (roughly one 3200 per project), so set it to 0 to turn it off.
+        Generation fails with a clear message if there genuinely aren't enough 3200
+        students to meet it.
       </p>
 
       <UAlert
@@ -900,7 +909,7 @@
       />
 
       <p
-        v-else-if="semesterId && !students3200ForDay.length"
+        v-if="semesterId && !students3200ForDay.length"
         class="text-sm text-gray-500"
       >
         No 3200 students enrolled for this semester/day.
@@ -1018,9 +1027,11 @@
       <div v-if="generateResult" class="space-y-4">
         <UAlert color="success" variant="subtle" title="Teams generated successfully" />
         <p class="text-sm text-gray-500">
-          Happy with a team? Lock it, then hit Generate Teams again. Locked teams are
-          left exactly as is, and the algorithm only re-solves for everyone else. Keep
-          locking and regenerating as many rounds as you want.
+          Happy with a team? Lock it, then hit Generate Teams again. Locked members stay
+          where they are and the algorithm only re-solves for everyone else. A locked
+          team with spare seats can still receive new students; to keep it exactly as
+          is, lock it once it is full. Keep locking and regenerating as many rounds as
+          you want.
         </p>
 
         <UCheckbox

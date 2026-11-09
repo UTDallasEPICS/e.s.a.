@@ -41,11 +41,16 @@ export default defineEventHandler(async (event) => {
 
   const lockedMemberships = await prisma.membership.findMany({
     where: {teamId: {in: teamsForRun.map((t) => t.id)}, isMentor: false, locked: true},
+    include: {Student: {select: {Enrollments: {where: {semesterId}, select: {class: true}}}}},
   })
   const lockedStudentIds = new Set(lockedMemberships.map((m) => m.studentId))
   const lockedCountByTeamId = new Map<string, number>()
+  const lockedUpperclassCountByTeamId = new Map<string, number>()
   for (const m of lockedMemberships) {
     lockedCountByTeamId.set(m.teamId, (lockedCountByTeamId.get(m.teamId) ?? 0) + 1)
+    if (m.Student.Enrollments[0]?.class === 'EPCS_3200') {
+      lockedUpperclassCountByTeamId.set(m.teamId, (lockedUpperclassCountByTeamId.get(m.teamId) ?? 0) + 1)
+    }
   }
 
   // Only unlocked 3200 students enrolled for this semester/day.
@@ -124,11 +129,12 @@ export default defineEventHandler(async (event) => {
     }
   })
 
-  const cpsatProjects: CPSATProject[] = projects.map((p) => ({
-    id: p.id,
-    name: p.name,
+  const cpsatProjects: CPSATProject[] = teamsForRun.map((t) => ({
+    id: t.Project.id,
+    name: t.Project.name,
     type: 'Both',
-    lockedCount: lockedCountByTeamId.get(teamsForRun.find((t) => t.projectId === p.id)!.id) ?? 0,
+    lockedCount: lockedCountByTeamId.get(t.id) ?? 0,
+    lockedUpperclassCount: lockedUpperclassCountByTeamId.get(t.id) ?? 0,
   }))
 
   let result
