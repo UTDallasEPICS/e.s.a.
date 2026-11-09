@@ -38,8 +38,9 @@ class SkillMatchTests(unittest.TestCase):
 
 
 class TieBreakPointsTests(unittest.TestCase):
-    """tie_break_points lives in team_generator.py, which imports ortools; stub it so this
-    runs without the solver installed."""
+    """The tie-break helpers live in team_generator.py, which imports ortools; stub it so this
+    runs without the solver installed. Experience vs skill fit ordering is enforced by solving
+    in stages (see test_tie_break.py), not by these point values."""
 
     @classmethod
     def setUpClass(cls):
@@ -48,27 +49,27 @@ class TieBreakPointsTests(unittest.TestCase):
         except ImportError:
             for name in ('ortools', 'ortools.sat', 'ortools.sat.python'):
                 sys.modules[name] = types.ModuleType(name)
-            sys.modules['ortools.sat.python'].cp_model = types.SimpleNamespace()
+            sys.modules['ortools.sat.python'].cp_model = types.SimpleNamespace(CpModel=object)
         import team_generator
-        cls.tb = staticmethod(team_generator.tie_break_points)
-
-    def test_experience_beats_any_skill_fit(self):
-        best_fit_no_extra_semester = self.tb({'priorSemesters': 1}, 0, 1.0)
-        one_more_semester_no_fit = self.tb({'priorSemesters': 2}, 0, 0.0)
-        self.assertGreater(one_more_semester_no_fit, best_fit_no_extra_semester)
+        cls.exp = staticmethod(team_generator.experience_points)
+        cls.fit = staticmethod(team_generator.fit_points)
 
     def test_3200_experience_beats_semesters(self):
-        self.assertGreater(self.tb({'prior3200Semesters': 1, 'priorSemesters': 1}, 0),
-                           self.tb({'priorSemesters': 9}, 0))
+        self.assertGreater(self.exp({'prior3200Semesters': 1, 'priorSemesters': 1}, 0),
+                           self.exp({'priorSemesters': 9}, 0))
 
-    def test_skill_fit_breaks_equal_experience(self):
-        s = {'priorSemesters': 2}
-        self.assertGreater(self.tb(s, 0, 0.8), self.tb(s, 0, 0.3))
+    def test_more_semesters_score_higher(self):
+        self.assertGreater(self.exp({'priorSemesters': 3}, 0), self.exp({'priorSemesters': 2}, 0))
+
+    def test_better_fit_scores_higher(self):
+        self.assertGreater(self.fit(0.8, 0), self.fit(0.3, 0))
 
     def test_lower_choices_weigh_less_and_unranked_is_zero(self):
         s = {'priorSemesters': 2}
-        self.assertGreater(self.tb(s, 0, 0.5), self.tb(s, 3, 0.5))
-        self.assertEqual(self.tb(s, 6, 1.0), 0)
+        self.assertGreater(self.exp(s, 0), self.exp(s, 3))
+        self.assertGreater(self.fit(0.5, 0), self.fit(0.5, 3))
+        self.assertEqual(self.exp(s, 6), 0)
+        self.assertEqual(self.fit(1.0, 6), 0)
 
 
 if __name__ == '__main__':

@@ -379,6 +379,20 @@ export default defineEventHandler(async (event) => {
         }
         nameOnlyNetIDs.add(netID)
       }
+    } else if (netID && email) {
+      // A student first imported without an SSO ID sits under a stand-in netID with this
+      // email. Give them their real netID so processBidRecord updates them instead of
+      // failing on the unique email. (A stand-in without an email can't be matched.)
+      const standIn = await prisma.student.findUnique({
+        where: { email },
+        select: { id: true, netID: true },
+      })
+      if (
+        standIn?.netID.startsWith('nobid-') &&
+        !(await prisma.student.findUnique({ where: { netID }, select: { id: true } }))
+      ) {
+        await prisma.student.update({ where: { id: standIn.id }, data: { netID } })
+      }
     }
     if (!netID) {
       skippedStudents.push(

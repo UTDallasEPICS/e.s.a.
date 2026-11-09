@@ -49,29 +49,60 @@ ConfigDict = TypedDict('ConfigDict', {
 }, total=False)
 
 
-# Every real score (choice rank, returning bonus, gender, major fit) is multiplied by this,
-# leaving room below it for tie-break points. Real scores are always multiples of 2.5, so
-# any real difference is at least 25,000,000 here, while one student's tie-break is at most
-# (19 x 100 + 99) x 6 = 11,994 — the tie-break can't outweigh a real point unless a day has
-# 2,000+ students.
-SCORE_SCALE = 10_000_000
+# Real scores (choice rank, returning bonus, gender, major fit) are multiples of 2.5; scaling
+# by 10 makes them integers, which CP-SAT needs.
+SCORE_SCALE = 10
 
 
-def tie_break_points(student: StudentDict, pref_index: int, skill_fit: float = 0.0) -> int:
+def experience_points(student: StudentDict, pref_index: int) -> int:
     """
-    Breaks ties between students who want the same project, in this order:
-      1. a student who has been in 3200 before beats a first-timer,
-      2. then more semesters in EPICS wins,
-      3. then the better skill fit (0..1) between the student's skills and the project's.
-    Weighted by how high the choice is, so the stronger student gets the better of two
-    choices. Experience moves in steps of 100 and skill fit adds at most 99, so a skill
-    fit can never outweigh a whole semester of experience.
+    First tie-break between students who want the same project: a student who has been in
+    3200 before beats a first-timer, then more semesters in EPICS wins. Weighted by how high
+    the choice is, so the stronger student gets the better of two choices.
     """
     if pref_index >= 6:
         return 0
     experience = (10 if student.get('prior3200Semesters', 0) > 0 else 0) + min(student.get('priorSemesters', 0), 9)
-    fit_points = round(max(0.0, min(1.0, skill_fit)) * 99)
-    return (experience * 100 + fit_points) * (6 - pref_index)
+    return experience * (6 - pref_index)
+
+
+def fit_points(skill_fit: float, pref_index: int) -> int:
+    """Last tie-break: skill fit (0..1) between the student and the project, weighted like experience."""
+    if pref_index >= 6:
+        return 0
+    return round(max(0.0, min(1.0, skill_fit)) * 99) * (6 - pref_index)
+
+
+def solve_in_order(model: cp_model.CpModel, x: dict, objectives: list, time_limit: float):
+    """
+    Maximizes each objective in turn, holding every earlier one at the best value found, so
+    a tie-break can never trade away a real point or an earlier tie-break, however many
+    students it adds up over. Returns (status of the first solve, {student: {project: 0/1}},
+    value of the first objective, wall time), or None if the first solve finds nothing. A
+    tie-break stage that runs out of time keeps the previous stage's answer.
+    """
+    solver = cp_model.CpSolver()
+    first_status, values, score, wall_time = None, None, 0, 0.0
+    for i, objective in enumerate(objectives):
+        if i and isinstance(objective, int):
+            continue  # no terms at this level
+        model.Maximize(objective)
+        solver.parameters.max_time_in_seconds = time_limit if i == 0 else time_limit / 3
+        status = solver.Solve(model)
+        wall_time += solver.WallTime()
+        if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+            if i == 0:
+                return None
+            break
+        if i == 0:
+            first_status, score = status, solver.Value(objective)
+        values = {s: {p: solver.Value(v) for p, v in row.items()} for s, row in x.items()}
+        model.Add(objective >= solver.Value(objective))
+        model.ClearHints()
+        for s, row in x.items():
+            for p, v in row.items():
+                model.AddHint(v, values[s][p])
+    return first_status, values, score, wall_time
 
 
 def generate_teams(students_data: list[StudentDict], projects_data: list[ProjectDict], config: Optional[ConfigDict] = None):
@@ -182,7 +213,7 @@ def generate_teams(students_data: list[StudentDict], projects_data: list[Project
                     model.Add(x[s_id][p_name] == 0)
 
     # OBJECTIVE: Maximize satisfaction score
-    objective_terms = []
+    objective_terms, experience_terms, fit_terms = [], [], []
 
     for s_id in student_ids:
         student = students[s_id]
@@ -219,8 +250,10 @@ def generate_teams(students_data: list[StudentDict], projects_data: list[Project
                 if config.get('prioritize_returning_students', True) and is_returning and student['previousProject'] == p_name:
                     base_score *= 1.5
 
-                score = round(base_score * SCORE_SCALE) + tie_break_points(student, pref_index, fit_table.get(s_id, {}).get(p_name, 0.0))
-                objective_terms.append(score * x[s_id][p_name])
+                objective_terms.append(round(base_score * SCORE_SCALE) * x[s_id][p_name])
+                experience_terms.append(experience_points(student, pref_index) * x[s_id][p_name])
+                fit = fit_table.get(s_id, {}).get(p_name, 0.0)
+                fit_terms.append(fit_points(fit, pref_index) * x[s_id][p_name])
 
     # SOFT CONSTRAINT: Gender balance (add penalty for imbalanced teams)
     if config.get('balance_gender', True):
@@ -288,32 +321,24 @@ def generate_teams(students_data: list[StudentDict], projects_data: list[Project
             if bonus > 0:
                 objective_terms.append(bonus * SCORE_SCALE * x[s_id][p_name])
 
-    # Maximize total satisfaction
-    model.Maximize(sum(objective_terms))
+    # Maximize total satisfaction, then break ties by experience, then by skill fit
+    solved = solve_in_order(model, x, [sum(objective_terms), sum(experience_terms), sum(fit_terms)], 30.0)
 
-    # Solve
-    solver = cp_model.CpSolver()
-
-    # Set time limit (30 seconds)
-    solver.parameters.max_time_in_seconds = 30.0
-
-    status = solver.Solve(model)
-
-    if status == cp_model.OPTIMAL or status == cp_model.FEASIBLE:
-        # Extract solution
+    if solved is not None:
+        status, values, score, solve_time = solved
         teams = {p_name: [] for p_name in project_names}
 
         for s_id in student_ids:
             for p_name in project_names:
-                if solver.Value(x[s_id][p_name]) == 1:
+                if values[s_id][p_name] == 1:
                     teams[p_name].append(s_id)
                     break
 
         return {
             'success': True,
             'teams': teams,
-            'score': solver.ObjectiveValue() / SCORE_SCALE,
-            'solve_time': solver.WallTime(),
+            'score': score / SCORE_SCALE,
+            'solve_time': solve_time,
             'status': 'optimal' if status == cp_model.OPTIMAL else 'feasible',
         }
     else:
@@ -430,7 +455,7 @@ def suggest_upperclass_placements(students_data: list[StudentDict], projects_dat
             locked_upperclass_count = projects[p_name].get('locked_upperclass_count', 0)
             model.Add(team_size + locked_upperclass_count <= max_per_project)
 
-        objective_terms = []
+        objective_terms, experience_terms, fit_terms = [], [], []
         for s_id in student_ids:
             student = students[s_id]
             is_returning = student.get('previousProject') is not None
@@ -440,16 +465,13 @@ def suggest_upperclass_placements(students_data: list[StudentDict], projects_dat
                     base_score = max(0, 1000 - pref_index * 300)
                     if is_returning and student['previousProject'] == p_name:
                         base_score *= 1.5
-                    score = round(base_score * SCORE_SCALE) + tie_break_points(student, pref_index, fit_table.get(s_id, {}).get(p_name, 0.0))
-                    objective_terms.append(score * x[s_id][p_name])
-        model.Maximize(sum(objective_terms))
+                    objective_terms.append(round(base_score * SCORE_SCALE) * x[s_id][p_name])
+                    experience_terms.append(experience_points(student, pref_index) * x[s_id][p_name])
+                    fit = fit_table.get(s_id, {}).get(p_name, 0.0)
+                    fit_terms.append(fit_points(fit, pref_index) * x[s_id][p_name])
 
-        solver = cp_model.CpSolver()
-        solver.parameters.max_time_in_seconds = 15.0
-        status = solver.Solve(model)
-        if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-            return solver, x
-        return None
+        solved = solve_in_order(model, x, [sum(objective_terms), sum(experience_terms), sum(fit_terms)], 15.0)
+        return solved[1] if solved else None
 
     if not student_ids:
         return {'success': True, 'placements': [], 'usedFallbackThirdChoice': False, 'noChoicesStudentIds': without_choices_ids}
@@ -466,12 +488,12 @@ def suggest_upperclass_placements(students_data: list[StudentDict], projects_dat
             'error': 'Could not place every 3200 student within their top 3 choices given current team capacity. Try locking some manually first, or increase max team size.',
         }
 
-    solver, x = result
+    values = result
     placements = []
     for s_id in student_ids:
         student = students[s_id]
         for p_name in project_names:
-            if solver.Value(x[s_id][p_name]) == 1:
+            if values[s_id][p_name] == 1:
                 rank = student['choices'].index(p_name) + 1  # 1-indexed for readability
                 placements.append({
                     'studentId': s_id,

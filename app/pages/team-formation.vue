@@ -501,9 +501,8 @@
   // ── Lock all / Unlock all 3200s ──────────────────────────────────────────────
   // Lock all locks every unlocked 3200 into the team picked in their dropdown, or
   // failing that the team they're on now; anyone with neither is skipped. Unlock
-  // all keeps every locked 3200 on their current team and only clears the lock
-  // (unlike the per-student Unlock, which removes the placement), so it's safe to
-  // undo with Lock all. Both ask first, since real semesters have real locks.
+  // all keeps every locked 3200 on their current team and only clears the lock, so
+  // it's safe to undo with Lock all. Both ask first, since real semesters have real locks.
 
   const confirm = useConfirm()
   const bulkLocking = ref(false)
@@ -1294,8 +1293,7 @@
 
   // One student's padlock on the Workbench, for anyone, 3200 or not. Generate Teams
   // leaves a locked student where they are. Both ways go through the lock route
-  // with their current team, so unlocking keeps them on it (the DELETE route would
-  // take them off). Locking the last open student locks the whole team, which then
+  // with their current team, so unlocking keeps them on it. Locking the last open student locks the whole team, which then
   // goes back to the grid like the team Lock button.
   const lockingStudentKey = ref<string | null>(null)
   async function toggleStudentLock(studentId: string, teamId: string, locked: boolean) {

@@ -60,11 +60,13 @@ class TieBreakTests(unittest.TestCase):
         self.assertEqual(result['teams']['A'][0], 'vet')
 
     def test_provided_skill_scores_override_local(self):
+        # Locally llm_high fits A not at all, but its provided score says a perfect fit, which
+        # beats local_high's partial local fit. B fits nobody, so only A's fit decides.
         projects = [{'name': 'A', 'type': 'SW', 'day': 'Wednesday', 'skills': 'Python'},
-                    {'name': 'B', 'type': 'SW', 'day': 'Wednesday', 'skills': 'Welding'}]
+                    {'name': 'B', 'type': 'SW', 'day': 'Wednesday', 'skills': 'Ceramics'}]
         a = student('llm_high', ['A', 'B'], prior=1, skills='Welding')
         a['skillScores'] = {'A': 1.0}
-        b = student('local_high', ['A', 'B'], prior=1, skills='Python')
+        b = student('local_high', ['A', 'B'], prior=1, skills='Python, Welding')
         result = generate_teams([b, a], projects, self.config)
         self.assertEqual(result['teams']['A'][0], 'llm_high')
 

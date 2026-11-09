@@ -25,7 +25,7 @@ real choice score**:
   `skillProvider` in the body of `generate` / `suggest-locks` does the same. Jev is not wired in yet.
 - **Bug fixed:** `ortools.ts` listed the fields it sent to Python and left out `priorSemesters` /
   `prior3200Semesters`, so the experience tie-break never reached the solver. It does now.
-- `SCORE_SCALE` went from 100,000 to 10,000,000 to leave room for the finer tie-break points.
+- The solver now solves in stages: real score first, then experience, then skill fit, each stage holding the previous best. Summed fit points could otherwise outweigh an experience step across students. `SCORE_SCALE` is now 10 (just enough to make real scores integers).
 - Run `npx prisma migrate deploy` then `npx prisma generate` (new `Project.skills` column).
 - Tests: `cd server/services/CPSAT && python3 -m unittest test_skill_match test_tie_break` (the second needs
   `ortools`).

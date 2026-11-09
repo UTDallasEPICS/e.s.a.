@@ -11,7 +11,8 @@ let pythonCommand: string | undefined;
 function resolvePythonCommand(): string {
   if (pythonCommand) return pythonCommand;
   for (const candidate of ['python3', 'python']) {
-    if (!spawnSync(candidate, ['--version']).error) return (pythonCommand = candidate);
+    // status 0, not just "spawned": Windows' Store alias python3.exe runs and exits 9009.
+    if (spawnSync(candidate, ['--version']).status === 0) return (pythonCommand = candidate);
   }
   throw new Error('No Python interpreter found on PATH (tried python3, python).');
 }

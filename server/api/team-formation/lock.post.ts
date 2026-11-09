@@ -27,8 +27,8 @@ export default defineEventHandler(async (event) => {
   if (!teamId || !studentId) {
     throw createError({statusCode: 400, message: 'teamId and studentId are required.'})
   }
-  if (typeof locked !== 'boolean') {
-    throw createError({statusCode: 400, message: 'locked must be a boolean.'})
+  if (typeof locked !== 'boolean' || typeof replaceLocked !== 'boolean') {
+    throw createError({statusCode: 400, message: 'locked and replaceLocked must be booleans.'})
   }
 
   const team = await prisma.team.findUnique({where: {id: teamId}})
