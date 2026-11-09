@@ -879,7 +879,8 @@ picker and Lock, or a red "Locked: Project" with Unlock.
 
 **Regenerate** `POST`s `{ semesterId, day, config }` to `/api/team-formation/generate`. Before re-solving, the board
 is saved as a version called "Before regenerating", so a regenerate can be undone (§4.4.5). Everyone who isn't
-locked is re-solved; locked students and locked teams stay as they are. Ties between equally good placements go to
+locked is re-solved; locked students stay where they are (a locked team with spare seats can still receive new
+students). Ties between equally good placements go to
 students with 3200 experience, then to students with more semesters.
 
 | State     | Appearance                                                                                       |

@@ -1,5 +1,5 @@
 import unittest
-from team_generator import generate_teams
+from team_generator import generate_teams, suggest_upperclass_placements
 
 
 class LockingTests(unittest.TestCase):
@@ -87,6 +87,16 @@ class LockingTests(unittest.TestCase):
         self.reserve(['1', '5', '6', '7'], 1)
         self.assert_valid(self.solve())
 
+
+    def test_suggest_cap_ignores_locked_2200s(self):
+        # 4 locked 2200s on A must not use up A's 3200 cap of 1.
+        projects = [{'name': 'A', 'locked_count': 4, 'locked_upperclass_count': 0},
+                    {'name': 'B', 'locked_count': 0, 'locked_upperclass_count': 0}]
+        students = [{'id': '0', 'choices': ['A']}]
+        result = suggest_upperclass_placements(
+            students, projects, {'max_team_size': 6, 'max_upperclass_per_project': 1})
+        self.assertTrue(result['success'], result)
+        self.assertEqual(result['placements'][0]['projectName'], 'A')
 
 if __name__ == '__main__':
     unittest.main()

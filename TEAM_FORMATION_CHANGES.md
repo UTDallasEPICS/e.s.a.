@@ -149,7 +149,7 @@ Diego's branch added a parallel implementation of the "minimum 3200" idea (`min_
 | `server/services/CPSAT/test_locking.py`, `test_minimum_3200.py` | Diego's regression tests |
 | `server/services/membershipService.ts` | Typed `locked` field |
 | `server/api/team-formation/lock.post.ts` | Place/lock one student (`locked`, default true); `replaceLocked` (default false) lets a board move replace a locked placement |
-| `server/api/team-formation/lock.delete.ts` | Unlock (remove) one student's placement |
+| `server/api/team-formation/lock.delete.ts` | Unlock one student (clears the lock, keeps the placement) |
 | `server/api/team-formation/lock-team.post.ts` | Lock/unlock a whole team |
 | `server/api/team-formation/suggest-locks.post.ts` | 3200-only suggestion solve |
 | `server/api/team-formation/generate.post.ts` | Skips locked students, keeps their placements, passes 3200 caps |

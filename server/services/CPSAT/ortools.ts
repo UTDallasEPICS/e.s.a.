@@ -6,9 +6,12 @@ import { dirname, join, resolve } from 'path';
 
 // Some hosts (notably recent macOS) only have `python3` on PATH, not `python`; others
 // (Windows, older setups) are the reverse. Try both rather than hardcoding one.
+// Probed once and cached: spawnSync blocks the event loop.
+let pythonCommand: string | undefined;
 function resolvePythonCommand(): string {
+  if (pythonCommand) return pythonCommand;
   for (const candidate of ['python3', 'python']) {
-    if (!spawnSync(candidate, ['--version']).error) return candidate;
+    if (!spawnSync(candidate, ['--version']).error) return (pythonCommand = candidate);
   }
   throw new Error('No Python interpreter found on PATH (tried python3, python).');
 }
@@ -147,7 +150,13 @@ function runPythonCPSAT<T extends { success: boolean; error?: string }>(inputDat
     pythonProcess.on('close', (code: number | null) => {
       if (code !== 0) {
         console.error('Python stderr:', stderr);
-        reject(new Error(`Python process exited with code ${code}: ${stderr}`));
+        // main() prints {success:false, error} to stdout before exiting 1 — prefer
+        // that message (e.g. a config ValueError) over raw stderr.
+        let message: string | undefined;
+        try {
+          message = (JSON.parse(stdout) as { error?: string }).error;
+        } catch {}
+        reject(new Error(message || `Python process exited with code ${code}: ${stderr}`));
         return;
       }
 
@@ -267,6 +276,7 @@ export async function suggestUpperclassPlacements(
       name: p.name,
       skills: p.skills ?? '',
       locked_count: p.lockedCount ?? 0,
+      locked_upperclass_count: p.lockedUpperclassCount ?? 0,
     })),
     config: config || { max_team_size: 6, max_upperclass_per_project: 4 },
   };
