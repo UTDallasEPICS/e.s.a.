@@ -426,6 +426,7 @@ async function runTest() {
   } else {
     console.log('❌ Constraint violations found:');
     violations.forEach(v => console.log(`  - ${v}`));
+    process.exitCode = 1;
   }
   
   console.log();
@@ -541,6 +542,10 @@ function validateConstraints(teams: Record<string, Student[]>, allStudents: Stud
       violations.push(`Team "${projectName}" too large (${team.length} > ${maxSize})`);
     }
     
+    if (team.filter(student => student.class === '3200').length < 1) {
+      violations.push(`Team "${projectName}" has fewer than 1 EPCS 3200 student`);
+    }
+
     // Check day matching
     const project = testProjects.find(p => p.name === projectName);
     if (project?.day) {

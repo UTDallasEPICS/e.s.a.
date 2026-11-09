@@ -19,7 +19,7 @@ the project lifecycle.
 | ID        | Description                                                                             | Category | Status      | Verification  | Target Semester | Mapping (issue / doc)          |
 | --------- | --------------------------------------------------------------------------------------- | -------- | ----------- | ------------- | --------------- | ------------------------------ |
 | REQ-F-01  | Teambuilder algorithm converts inputted skills into numerical weights     | REQ-F    | Backlog     | Test          | 2026F           | #1                             |
-| REQ-F-02 | Algorithm enforces minimum 3200 student threshold                                 | REQ-F   | Backlog     | Inspection    | 2026F           | #2   |
+| REQ-F-02 | Algorithm enforces a configurable minimum of EPCS 3200 students per team (default 1; 0 disables) | REQ-F | In-progress | Test | 2026F | #9 |
 | REQ-F-03 | An operator is able to lock students and teams and run algorithm on remaining "unlocked students" | REQ-F   | Backlog     | Test          | 2026F           | #3                             |
 | REQ-NF-01  | Allow teambuilder to be iterative process rather than one-shot     | REQ-F    | Backlog     | Demonstration | 2026F           | #4                            |
 | REQ-NF-02 | Teambuilder UI/UX/workflow is intuitive and easy for project director to navigate    | REQ-NF   | Backlog     | Test          | 2026F           | #5                             |

@@ -36,16 +36,27 @@ both `ortools.ts` and `team_generator.py` if omitted:
 | ------------------------------- | ------- | -------------------------------------------------------------------------------------------- |
 | `min_team_size`                 | `4`     | Hard lower bound on every team's size (§2)                                                   |
 | `max_team_size`                 | `6`     | Hard upper bound on every team's size (§2)                                                   |
+| `min_upperclass_per_project`             | `1`     | Hard minimum number of EPCS 3200 students on every team; `0` disables this rule. Must be a non-negative integer no greater than `max_team_size`. |
 | `prioritize_returning_students` | `true`  | Enables the returning-student bonus (§3)                                                     |
 | `prioritize_3200_first_choice`  | `true`  | Enables the EPCS 3200 scoring multiplier (§3) — the name is legacy; it isn't first-choice-only, see §3 note |
 | `balance_gender`                | `true`  | Enables the gender-isolation penalty (§3)                                                    |
 
-`min_team_size`/`max_team_size` are the only fields that change what counts as a *valid* solution; the other three
+`min_team_size`, `max_team_size`, and `min_upperclass_per_project` change what counts as a *valid* solution; the other three
 only reweight the objective among otherwise-valid solutions.
 
 ---
 
 ## 2. Hard Constraints
+
+The generation endpoint excludes students with locked memberships from solver inputs.
+Their project's `locked_count` and `locked_upperclass_count` reserve capacity and count
+toward team-size and 3200 requirements. Generation replaces only unlocked memberships,
+then includes the preserved locked students in its response. The page supports individual
+and bulk team-member locks backed by the database. Bulk locking preserves current members
+but does not prevent additional students joining a team with spare capacity.
+
+Run the locking tests with:
+`PYTHONDONTWRITEBYTECODE=1 python -m unittest discover -s server/services/CPSAT -p test_locking.py`.
 
 Enforced directly in the CP-SAT model (`team_generator.py`); violating any of these makes the model infeasible,
 which surfaces to the caller as a 400 with a diagnostic message (`generate.post.ts` catches the rejected promise
@@ -57,6 +68,7 @@ from `generateTeamsORTools`).
 | 2 | Team size bounds               | `min_team_size <= sum(x[s][p] for all s) <= max_team_size` for every project `p`.                                  |
 | 3 | Returning students must be 3200 | Input validation, not a model constraint: raises before solving if any student has `previousProject` set but `class != '3200'`. |
 | 4 | Meeting-day match               | If both the student and the project have a `day`, `x[s][p]` is forced to 0 for every non-matching pair.            |
+| 5 | Minimum EPCS 3200 students      | Every team must contain at least `min_upperclass_per_project` students whose class is `3200`, regardless of preference priority settings. Insufficient 3200 enrollment rejects generation before assignments are saved. |
 
 Only eligible (non-mentor) students enrolled for that semester+day, and only projects with an active `Team` for
 that semester+day, are given to the solver at all (`generate.post.ts`) — day filtering there and constraint 4 are
