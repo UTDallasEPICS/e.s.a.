@@ -178,6 +178,9 @@ model Enrollment {
   meetingDay ProjectMeetingDay
   skills     String            @default("") // comma separated list of skills, e.g. "Python, C++, Java"
   comments   String            @default("")
+  // Set by the bid importer when the student's row had no usable choice and was placed
+  // on a project that fits their major (server/utils/noBid.ts).
+  noBid      Boolean           @default(false)
   createdAt  DateTime          @default(now())
   updatedAt  DateTime          @updatedAt
 

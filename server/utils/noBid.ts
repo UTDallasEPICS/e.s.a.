@@ -2,12 +2,11 @@
 //
 // A "no-bid" student is a bid-file row that ends up with zero usable project choices.
 // The importer places each of them on one project that fits their major by writing that
-// project in as their Choice 1, so the solver treats them like any other bidder.
+// project in as their Choice 1, so the solver treats them like any other bidder, and sets
+// Enrollment.noBid so later steps can recognise them.
 
-/** Marker written at the start of Enrollment.comments so later steps can recognise no-bid students. */
-export const NO_BID_TAG = '[No bid]'
-
-type ProjectType = 'SOFTWARE' | 'HARDWARE' | 'BOTH'
+import { createHash } from 'node:crypto'
+import type { ProjectType } from '@@/prisma/generated/client'
 
 // Same major groups the solver uses for its major-fit bonus (server/services/CPSAT/team_generator.py).
 const SOFTWARE_MAJORS = new Set(['CS', 'SE', 'DS'])
@@ -48,12 +47,17 @@ export function pickProjectForMajor(
   )
 }
 
-/** Stable stand-in netID for a row that has no SSO ID, so re-uploading updates the same student. */
-export function placeholderNetID(firstName: string, lastName: string): string {
-  const slug = (s: string) =>
-    s
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-  return `nobid-${slug(firstName)}-${slug(lastName)}`.replace(/-+$/g, '')
+/**
+ * Stable stand-in netID for a row that has no SSO ID, so re-uploading updates the same
+ * student. Keyed on the email when there is one (unique per student), else the full name.
+ * The hash keeps names apart whose ASCII slug is empty or identical (e.g. non-Latin names).
+ */
+export function placeholderNetID(firstName: string, lastName: string, email?: string | null): string {
+  const slug = `${firstName} ${lastName}`
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+  const key = (email || `${firstName} ${lastName}`).normalize('NFKC').trim().toLowerCase()
+  const hash = createHash('sha256').update(key).digest('hex').slice(0, 8)
+  return ['nobid', slug, hash].filter(Boolean).join('-')
 }

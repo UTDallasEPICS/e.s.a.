@@ -12,6 +12,7 @@ export interface EnrollmentRead {
   meetingDay: ProjectMeetingDay;
   skills: string[];
   comments: string;
+  noBid: boolean;
 }
 
 export interface EnrollmentCreate {

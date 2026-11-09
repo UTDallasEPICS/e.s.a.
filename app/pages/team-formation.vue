@@ -205,7 +205,9 @@
             enrollment ? titleCase(enrollment.year) : '',
             enrollment ? titleCase(enrollment.gender) : '',
             enrollment?.skills.join('; ') ?? '',
-            enrollment?.comments ?? '',
+            [enrollment?.noBid ? '[No bid]' : '', enrollment?.comments ?? '']
+              .filter(Boolean)
+              .join(' '),
           ])
         }
       }

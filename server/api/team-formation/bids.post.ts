@@ -20,7 +20,6 @@ import projectService from '#server/services/projectService'
 import partnerService from '#server/services/partnerService'
 import teamService from '#server/services/teamService'
 import {
-  NO_BID_TAG,
   pickProjectForMajor,
   placeholderNetID,
   type PlacementCandidate,
@@ -163,6 +162,7 @@ interface BidRecord {
   choices: string[]
   skills: string[]
   comments: string
+  noBid?: boolean
 }
 
 async function processBidRecord(
@@ -190,6 +190,7 @@ async function processBidRecord(
     class: record.class,
     skills: record.skills.join(', '),
     comments: record.comments,
+    noBid: record.noBid ?? false,
   }
   await prisma.enrollment.upsert({
     where: { studentId_semesterId: { studentId: student.id, semesterId } },
@@ -350,22 +351,40 @@ export default defineEventHandler(async (event) => {
   const noBidRecords: BidRecord[] = []
   // How many bidders have each project as Choice 1, so no-bid students can be spread out.
   const firstChoiceLoad = new Map<string, number>()
+  // netIDs already written from a row with bids, so a blank duplicate row can't replace them.
+  const importedNetIDs = new Set<string>()
+  // Stand-in netIDs built from a name alone (no SSO ID, no email) seen in this upload.
+  const nameOnlyNetIDs = new Set<string>()
 
   for (const row of rows) {
     // ── Build student record ─────────────────────────────────────────────────
     const { firstName, lastName } = parseStudentName(row)
-    // A row with only a name and major has no SSO ID; give it a stable stand-in netID.
+    const email = readFirstValue(row, ['Student Email', 'student email', 'studentemail']) || null
+    // A row with only a name and major has no SSO ID. Reuse the student already stored
+    // under its email (Student.email is unique), else give it a stable stand-in netID.
     // Only a row with neither an SSO ID nor a name is skipped.
-    const netID =
-      readFirstValue(row, ['SSO ID', 'ssoid', 'netID', 'netid', 'id']) ||
-      (firstName || lastName ? placeholderNetID(firstName, lastName) : '')
+    let netID = readFirstValue(row, ['SSO ID', 'ssoid', 'netID', 'netid', 'id'])
+    if (!netID && (firstName || lastName)) {
+      const existing = email
+        ? await prisma.student.findUnique({ where: { email }, select: { netID: true } })
+        : null
+      netID = existing?.netID ?? placeholderNetID(firstName, lastName, email)
+      if (!email) {
+        // Two such rows with the same name can't be told apart; skip the repeat rather
+        // than overwrite the first student with it.
+        if (nameOnlyNetIDs.has(netID)) {
+          skippedStudents.push(`${firstName} ${lastName}`.trim() + ' (repeated name, no SSO ID or email)')
+          continue
+        }
+        nameOnlyNetIDs.add(netID)
+      }
+    }
     if (!netID) {
       skippedStudents.push(
         readFirstValue(row, ['Student Name', 'student name', 'name', 'fullName']) || '(no name)'
       )
       continue
     }
-    const email = readFirstValue(row, ['Student Email', 'student email', 'studentemail']) || null
     const yearRaw = readFirstValue(row, ['Classification', 'classification']).toLowerCase()
     const year: Year = YEAR_MAP[yearRaw] ?? 'FRESHMAN'
     const cls = extractClass(readFirstValue(row, ['Enrollment', 'enrollment']))
@@ -427,6 +446,7 @@ export default defineEventHandler(async (event) => {
     }
 
     await processBidRecord(semesterId, meetingDay, record)
+    importedNetIDs.add(netID)
     studentsImported++
     choicesCreated += chosenProjectIds.length
     const firstChoice = chosenProjectIds[0]!
@@ -453,13 +473,17 @@ export default defineEventHandler(async (event) => {
     }))
 
     for (const record of noBidRecords) {
+      // The same student also has a row with bids (or an earlier blank row) in this file.
+      if (importedNetIDs.has(record.netID)) continue
+      importedNetIDs.add(record.netID)
+
       const pick = pickProjectForMajor(record.major, candidates)
       const fullName = `${record.firstName} ${record.lastName}`.trim()
 
       await processBidRecord(semesterId, meetingDay, {
         ...record,
         choices: pick ? [pick.projectId] : [],
-        comments: [NO_BID_TAG, record.comments].filter(Boolean).join(' '),
+        noBid: true,
       })
       studentsImported++
 
