@@ -95,6 +95,23 @@ export default defineEventHandler(async (event) => {
       teamsForRun.map((team) => [team.projectId, team.meetingDay] as const)
   )
 
+  // Students manually locked into a team ahead of this run (e.g. a 3200 student staff
+  // already placed via the lock endpoint) are excluded from the solver entirely and
+  // counted toward their team's size instead, so the solver only fills remaining seats.
+  const lockedMemberships = await prisma.membership.findMany({
+    where: {teamId: {in: teamsForRun.map((team) => team.id)}, isMentor: false, locked: true},
+  })
+  const lockedStudentIds = new Set(lockedMemberships.map((m) => m.studentId))
+  const lockedCountByTeamId = new Map<string, number>()
+  const lockedUpperclassCountByTeamId = new Map<string, number>()
+  const studentIdToClass = new Map(students.map((s) => [s.id, s.Enrollments[0]?.class] as const))
+  for (const m of lockedMemberships) {
+    lockedCountByTeamId.set(m.teamId, (lockedCountByTeamId.get(m.teamId) ?? 0) + 1)
+    if (studentIdToClass.get(m.studentId) === 'EPCS_3200') {
+      lockedUpperclassCountByTeamId.set(m.teamId, (lockedUpperclassCountByTeamId.get(m.teamId) ?? 0) + 1)
+    }
+  }
+
   if (!students.length) {
     throw createError({statusCode: 400, message: 'No active students found.'})
   }
@@ -149,8 +166,8 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  // Map Prisma students → CPSAT Student type
-  const cpsatStudents: CPSATStudent[] = students.map((s) => {
+  // Map Prisma students → CPSAT Student type, excluding anyone already locked into a team
+  const cpsatStudents: CPSATStudent[] = students.filter((s) => !lockedStudentIds.has(s.id)).map((s) => {
     // CPSAT expects project NAMES in choices (not IDs).
     // Keep only choices that map to currently active semester projects; if none
     // remain, the solver still places the student (every student must be
@@ -180,12 +197,17 @@ export default defineEventHandler(async (event) => {
   })
 
   // Map Prisma projects → CPSAT Project type
-  const cpsatProjects: CPSATProject[] = projects.map((p: Project) => ({
-    id: p.id,
-    name: p.name,
-    type: mapProjectType(p.type),
-    day: remapDay(projectIdToDay.get(p.id)!),
-  }))
+  const cpsatProjects: CPSATProject[] = projects.map((p: Project) => {
+    const teamId = projectIdToTeamId.get(p.id)!
+    return {
+      id: p.id,
+      name: p.name,
+      type: mapProjectType(p.type),
+      day: remapDay(projectIdToDay.get(p.id)!),
+      lockedCount: lockedCountByTeamId.get(teamId) ?? 0,
+      lockedUpperclassCount: lockedUpperclassCountByTeamId.get(teamId) ?? 0,
+    }
+  })
 
   // Run the CP-SAT algorithm (spawns a Python process)
   let cpsatResult
@@ -211,10 +233,11 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  // Persist student assignments to the database, replacing any prior generation's
-  // assignments for this semester/day. Mentor memberships (assigned separately from
-  // this algorithm) are left untouched.
-  const memberships = Object.entries(assignmentsByProjectId).flatMap(([pId, members]) => {
+  // Persist only the newly solved (unlocked) assignments, replacing any prior generation's
+  // unlocked assignments for this semester/day. Manually-locked memberships (see
+  // lock.post.ts) already exist in the database and are left untouched here, as are
+  // mentor memberships (assigned separately from this algorithm).
+  const newMemberships = Object.entries(assignmentsByProjectId).flatMap(([pId, members]) => {
     return members.map(m => ({
       teamId: projectIdToTeamId.get(pId)!,
       studentId: m.id,
@@ -222,10 +245,20 @@ export default defineEventHandler(async (event) => {
   })
   await prisma.$transaction([
     prisma.membership.deleteMany({
-      where: {teamId: {in: teamsForRun.map((team) => team.id)}, isMentor: false},
+      where: {teamId: {in: teamsForRun.map((team) => team.id)}, isMentor: false, locked: false},
     }),
-    prisma.membership.createMany({data: memberships}),
+    prisma.membership.createMany({data: newMemberships}),
   ])
+
+  // Add locked students back in so the response reflects the full roster (locked +
+  // newly solved) even though their membership rows weren't part of the write above.
+  for (const m of lockedMemberships) {
+    const team = teamsForRun.find((t) => t.id === m.teamId)
+    const student = idToStudent.get(m.studentId)
+    if (team && student) {
+      assignmentsByProjectId[team.projectId]!.push(student)
+    }
+  }
 
   const teamAssignments: Record<string, StudentWithChoices[]> = Object.fromEntries(
       Object.entries(assignmentsByProjectId)

@@ -25,6 +25,7 @@ export interface MembershipRead {
   teamId: string;
   studentId: string;
   isMentor: boolean;
+  locked: boolean;
   Student: MembershipStudentRead;
   Team: MembershipTeamRead;
 }
@@ -33,6 +34,7 @@ export interface MembershipCreate {
   teamId: string;
   studentId: string;
   isMentor?: boolean;
+  locked?: boolean;
 }
 
 export const MEMBERSHIP_INCLUDE = {

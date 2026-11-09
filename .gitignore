@@ -25,3 +25,6 @@ logs
 
 /prisma/generated
 /dev.db
+
+# Local benchmarking data (contains student PII, never commit)
+/data

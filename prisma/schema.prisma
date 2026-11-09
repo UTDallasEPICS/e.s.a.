@@ -136,6 +136,9 @@ model Membership {
   teamId    String
   studentId String
   isMentor  Boolean  @default(false)
+  // Manually confirmed by staff before team generation (e.g. a 3200 student placed
+  // ahead of time); generate.post.ts leaves these rows alone and solves only the rest.
+  locked    Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
