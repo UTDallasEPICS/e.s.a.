@@ -798,8 +798,11 @@ with only a name and a major, or an existing row whose Choice 1–6 cells are al
 4. Save the file as CSV.
 5. Go to **Team Formation** and click **Select** on the semester (step 1); it opens **Bid Files** (step 2). On the
    row for the **same day as the file**, click **Replace bid file** if bids are already saved, choose the file, and click
-   **Upload**. Rows with no SSO ID are not skipped: each gets a stand-in netID of the form `nobid-first-last`, so
-   re-uploading updates the same student instead of duplicating them.
+   **Upload**. Rows with no SSO ID are not skipped. If the row's email matches a stored student, it updates that
+   student; otherwise it gets a stand-in netID of the form `nobid-first-last-<hash>` (hash of the email, or of the
+   name when there is no email) so re-uploading updates the same student instead of duplicating them. A second row
+   with the same name and no SSO ID or email is skipped and listed, rather than overwriting the first. A blank row
+   for a student who also has a row with bids in the same file is ignored.
 6. Read the **"N student(s) had no bid and were placed by major"** list under the card. It shows each student's
    major and the project they were placed on.
 7. Go to **Manage Teams** (step 3) and set **Working on** to that day. Teams build on their own the first time a
@@ -816,9 +819,8 @@ meeting day are candidates. A project whose type matches the major wins — Soft
 projects for EE/ME/BME/CE; next come "Both" projects; any other project is the last resort (this is also what
 happens for `Systems` and `Other` majors). Ties go to the project with the fewest students already headed there, so
 no-bid students spread across teams rather than piling onto one. The chosen project is saved as the student's
-Choice 1, and the enrollment's Comments cell starts with `[No bid]` so the student can be recognised later (it also
-appears in the Team Export). Don't remove that tag when editing the student in the Database tab, or the page will
-treat their placement as a real 1st choice.
+Choice 1, and the enrollment's `noBid` flag is set so the student can be recognised later (the Team Export prefixes
+their Comments cell with `[No bid]`). Re-uploading the student with real bids clears the flag.
 
 **Defaults for blank cells:** Classification → Freshman, Enrollment → EPCS 2200, Gender → Prefer not to say, Email →
 none. Fill these in before uploading if you know them, since the solver's 3200 and gender rules use them.

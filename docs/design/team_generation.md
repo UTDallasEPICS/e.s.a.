@@ -149,5 +149,5 @@ How this interacts with the constraints and scoring above:
 | Scoring (§4)           | The placed project is Choice 1, so it earns the 1000 base score (2200-level default) and the usual major-fit bonus (+60 / +80). It is a strong preference, not a lock.        |
 | Moves                  | If team-size limits or other students' preferences make a different assignment score better, the solver may move a no-bid student; the results list flags this as *moved from …*. |
 | Returning bonus        | Never applies (no prior-project history is created, and defaults to 2200).                                                                                                    |
-| Identification         | Enrollment Comments start with `[No bid]`; a row with no SSO ID is stored under a stand-in netID `nobid-first-last`.                                                          |
+| Identification         | `Enrollment.noBid` is true; a row with no SSO ID reuses the student with its email, else a stand-in netID `nobid-first-last-<hash>`.                                                          |
 

@@ -10,7 +10,6 @@ import type {Student as CPSATStudent, Project as CPSATProject, Gender as CPSATGe
 import type {CPSATConfig} from '#server/services//CPSAT/ortools'
 import {Year, ProjectType, Choice, Project, Class, ProjectMeetingDay, Enrollment, Gender, Season} from '@@/prisma/generated/client'
 import {prisma} from '#server/utils/prisma'
-import {NO_BID_TAG} from '#server/utils/noBid'
 import teamVersionService from '#server/services/teamVersionService'
 import {getPriorExperience} from '#server/utils/priorExperience'
 import {computeSkillScoresDetailed, resolveProvider} from '#server/services/skillFitService'
@@ -308,16 +307,15 @@ export default defineEventHandler(async (event) => {
     for (const m of members) assignedProjectIdByStudentId.set(m.id, pId)
   }
   const noBidPlacements = students
-      .filter((s) => s.Enrollments[0]?.comments.startsWith(NO_BID_TAG))
+      .filter((s) => s.Enrollments[0]?.noBid)
       .map((s) => {
         const assignedId = assignedProjectIdByStudentId.get(s.id)
-        const placedId = s.Choices.slice().sort((a: Choice, b: Choice) => a.rank - b.rank)[0]?.projectId
         return {
           id: s.id,
           name: `${s.firstName} ${s.lastName}`.trim(),
           netID: s.netID,
           major: s.Enrollments[0]!.major,
-          placedProject: placedId ? (projectIdToName.get(placedId) ?? null) : null,
+          placedProject: mappedChoicesByStudentId.get(s.id)?.[0] ?? null,
           assignedProject: assignedId ? (projectIdToName.get(assignedId) ?? null) : null,
         }
       })

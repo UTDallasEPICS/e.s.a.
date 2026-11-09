@@ -7,7 +7,6 @@
  * 3200 coverage, "not top 3"), so this page never disagrees with the Manage Teams cards.
  */
 import {prisma} from '#server/utils/prisma'
-import {NO_BID_TAG} from '#server/utils/noBid'
 
 type MeetingDay = 'WEDNESDAY' | 'THURSDAY'
 type CheckStatus = 'pass' | 'warn' | 'fail'
@@ -42,7 +41,7 @@ export default defineEventHandler(async (event) => {
   const rankOf = (studentId: string, projectId: string) =>
     studentById.get(studentId)?.Choices.find((c) => c.projectId === projectId)?.rank ?? null
   const isNoBid = (id: string) =>
-    !!studentById.get(id)?.Enrollments[0]?.comments?.startsWith(NO_BID_TAG)
+    !!studentById.get(id)?.Enrollments[0]?.noBid
 
   // ── Placement outcomes ──────────────────────────────────────────────────────
   const placedProjectByStudent = new Map<string, {teamId: string; projectId: string; projectName: string}>()

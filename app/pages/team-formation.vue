@@ -190,7 +190,9 @@
             enrollment ? titleCase(enrollment.year) : '',
             enrollment ? titleCase(enrollment.gender) : '',
             enrollment?.skills.join('; ') ?? '',
-            enrollment?.comments ?? '',
+            [enrollment?.noBid ? '[No bid]' : '', enrollment?.comments ?? '']
+              .filter(Boolean)
+              .join(' '),
             membership.locked ? 'Yes' : 'No',
           ])
         }
@@ -405,11 +407,8 @@
   // A student with no bid gets one project written in as their Choice 1 at import
   // (server/utils/noBid.ts), so the solver places them by major. That's a placement,
   // not a preference, so everywhere on this page they read as having no choices.
-  const NO_BID_TAG = '[No bid]'
   function isNoBid(student: StudentRead | undefined) {
-    return !!student?.Enrollments.find(
-      (e) => e.semesterId === semesterId.value
-    )?.comments.startsWith(NO_BID_TAG)
+    return !!student?.Enrollments.find((e) => e.semesterId === semesterId.value)?.noBid
   }
 
   function bidChoicesFor(student: StudentRead | undefined) {
