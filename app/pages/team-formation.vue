@@ -503,7 +503,7 @@
     lockError.value = null
     try {
       await $fetch('/api/team-formation/lock', { method: 'POST', body: { teamId, studentId } })
-      await refreshStudentsForSemester()
+      await Promise.all([refreshProjectsForSemester(), refreshStudentsForSemester()])
     } catch (e: any) {
       lockError.value = e?.data?.message ?? e?.message ?? 'Failed to lock student.'
     } finally {
@@ -516,7 +516,7 @@
     lockError.value = null
     try {
       await $fetch('/api/team-formation/lock', { method: 'DELETE', body: { membershipId } })
-      await refreshStudentsForSemester()
+      await Promise.all([refreshProjectsForSemester(), refreshStudentsForSemester()])
     } catch (e: any) {
       lockError.value = e?.data?.message ?? e?.message ?? 'Failed to unlock student.'
     } finally {
@@ -586,19 +586,28 @@
     lockError.value = null
     try {
       for (const studentId of studentIds) {
-        await $fetch('/api/team-formation/lock', {
-          method: 'POST',
-          body: { teamId: suggestions[studentId]!.teamId, studentId },
-        })
+        // Staff may have changed the dropdown after the suggestion pre-filled it.
+        const teamId = lockSelections[studentId] ?? suggestions[studentId]!.teamId
+        await $fetch('/api/team-formation/lock', { method: 'POST', body: { teamId, studentId } })
         delete suggestions[studentId]
       }
-      await refreshStudentsForSemester()
     } catch (e: any) {
       lockError.value = e?.data?.message ?? e?.message ?? 'Failed to lock all suggested students.'
     } finally {
+      // Refresh even on partial failure so already-locked students show as locked.
+      await Promise.all([refreshProjectsForSemester(), refreshStudentsForSemester()])
       lockingAllSuggested.value = false
     }
   }
+
+  // Suggestions and picks belong to one semester/day. Drop them when either changes so
+  // Lock All Suggested can't lock students into the previous selection's teams.
+  watch([semesterId, meetingDay], () => {
+    for (const key of Object.keys(suggestions)) delete suggestions[key]
+    for (const key of Object.keys(lockSelections)) delete lockSelections[key]
+    noChoiceStudentIds.value = new Set()
+    usedFallbackThirdChoice.value = false
+  })
 
   // ── Team generation ──────────────────────────────────────────────────────────
 
@@ -1214,6 +1223,13 @@
       <div v-if="semesterId" class="space-y-2">
         <h3 class="font-medium">Teams already entered for this semester/day</h3>
         <UAlert
+          v-if="teamLockError"
+          color="error"
+          variant="subtle"
+          title="Could not update team lock"
+          :description="teamLockError"
+        />
+        <UAlert
           v-if="projectsStatus !== 'pending' && !teamsForDay.length"
           icon="i-heroicons-exclamation-triangle"
           color="warning"
@@ -1221,7 +1237,8 @@
           title="No teams found"
           description="Create projects and teams for this semester/day in the Database tab before continuing."
         />
-        <ul class="space-y-1">
+
+        <ul v-else class="space-y-1">
           <li
             v-for="team in teamsForDay"
             :key="team.id"
@@ -1452,7 +1469,7 @@
       />
 
       <p
-        v-else-if="semesterId && !students3200ForDay.length"
+        v-if="semesterId && !students3200ForDay.length"
         class="text-sm text-gray-500"
       >
         No 3200 students enrolled for this semester/day.
@@ -1571,7 +1588,7 @@
         color="success"
         variant="subtle"
         title="Teams generated"
-        description="Arrange them in the next step. Teams you lock there are kept exactly as they are if you come back and generate again; only everyone else is re-solved."
+        description="Arrange them in the next step. Members of teams you lock there stay put if you come back and generate again; only everyone else is re-solved. A locked team with spare seats can still receive new students."
       />
     </section>
 

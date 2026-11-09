@@ -117,7 +117,7 @@ def generate_teams(students_data: list[StudentDict], projects_data: list[Project
 
     # CONSTRAINT 2c: Guarantee at least min_upperclass_per_project 3200-level students
     # on every project (e.g. "every team needs a 3200 to lead it"), counting any 3200s
-    # already locked in. Optional and off by default — with few enough 3200 students
+    # already locked in. Defaults to 1; 0 turns it off. With few enough 3200 students
     # relative to the number of teams, this can be infeasible; see the error message
     # below for that case.
     min_upperclass_per_project = config.get('min_upperclass_per_project')
@@ -390,7 +390,10 @@ def suggest_upperclass_placements(students_data: list[StudentDict], projects_dat
             locked_count = projects[p_name].get('locked_count', 0)
             team_size = sum(x[s_id][p_name] for s_id in student_ids)
             model.Add(team_size + locked_count <= config['max_team_size'])
-            model.Add(team_size + locked_count <= max_per_project)
+            # Every student in this pass is a 3200, so the cap only counts locked 3200s,
+            # not locked 2200s.
+            locked_upperclass_count = projects[p_name].get('locked_upperclass_count', 0)
+            model.Add(team_size + locked_upperclass_count <= max_per_project)
 
         objective_terms = []
         for s_id in student_ids:

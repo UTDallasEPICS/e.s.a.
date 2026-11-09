@@ -23,7 +23,7 @@ The page shows **one step at a time**. A step bar at the top shows where you are
 
 - **Min/Max 3200 per Project** are always visible, because they also drive Generate Teams. Max defaults to 4, so one popular project can't absorb all the 3200s. Min defaults to **1**, so every project needs at least one 3200. If there aren't enough 3200 students, generation fails with a message saying how many more are needed.
 - Everything else is folded behind **Show 3200 students**:
-  - **Lock one student:** pick a team from their dropdown and hit **Lock**. The dropdown is ordered by that student's own ranking, with a returning project flagged. Locked students are skipped by Generate Teams. **Unlock** removes the placement.
+  - **Lock one student:** pick a team from their dropdown and hit **Lock**. The dropdown is ordered by that student's own ranking, with a returning project flagged. Locked students are skipped by Generate Teams. **Unlock** clears the lock and leaves the student on their team.
   - **Suggest Placements** runs the algorithm on the unlocked 3200s only. It guarantees 1st or 2nd choice where possible, falls back to 3rd only when capacity forces it (flagged), and sets aside students who never bid. Each suggestion pre-fills the dropdown with a reason. **Lock All Suggested** locks them.
   - **Lock all** locks every unlocked 3200 into the team picked in their dropdown, or else the team they're on now. **Unlock all** keeps students on their current team and only clears the lock. Both ask for confirmation first.
 
@@ -80,7 +80,7 @@ Diego's branch added a parallel implementation of the "minimum 3200" idea (`min_
 | `server/services/CPSAT/test_locking.py`, `test_minimum_3200.py` | Diego's regression tests |
 | `server/services/membershipService.ts` | Typed `locked` field |
 | `server/api/team-formation/lock.post.ts` | Place/lock one student (`locked`, default true); `replaceLocked` (default false) lets a board move replace a locked placement |
-| `server/api/team-formation/lock.delete.ts` | Unlock (remove) one student's placement |
+| `server/api/team-formation/lock.delete.ts` | Unlock one student (clears the lock, keeps the placement) |
 | `server/api/team-formation/lock-team.post.ts` | Lock/unlock a whole team |
 | `server/api/team-formation/suggest-locks.post.ts` | 3200-only suggestion solve |
 | `server/api/team-formation/generate.post.ts` | Skips locked students, keeps their placements, passes 3200 caps |

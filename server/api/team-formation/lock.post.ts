@@ -14,7 +14,7 @@
  */
 
 import {prisma} from '#server/utils/prisma'
-import membershipService from '#server/services/membershipService'
+import {MEMBERSHIP_INCLUDE} from '#server/services/membershipService'
 
 export default defineEventHandler(async (event) => {
   const {teamId, studentId, locked = true, replaceLocked = false} = await readBody<{
@@ -27,28 +27,49 @@ export default defineEventHandler(async (event) => {
   if (!teamId || !studentId) {
     throw createError({statusCode: 400, message: 'teamId and studentId are required.'})
   }
+  if (typeof locked !== 'boolean') {
+    throw createError({statusCode: 400, message: 'locked must be a boolean.'})
+  }
 
   const team = await prisma.team.findUnique({where: {id: teamId}})
   if (!team) {
     throw createError({statusCode: 404, message: 'Team not found.'})
   }
 
-  // A student can only hold one non-mentor membership per semester — check across all
-  // teams in that semester, not just this one, before locking them in.
-  const existing = await prisma.membership.findFirst({
-    where: {studentId, isMentor: false, Team: {semesterId: team.semesterId}},
+  // Generation only solves (and only clears) memberships for students enrolled on the
+  // team's day, so a placement on the wrong day would be duplicated by the next run.
+  const enrollment = await prisma.enrollment.findFirst({
+    where: {studentId, semesterId: team.semesterId, meetingDay: team.meetingDay},
   })
-  if (existing) {
-    if (existing.locked && !replaceLocked) {
-      throw createError({
-        statusCode: 400,
-        message: 'This student is already locked into a team this semester. Unlock it first.',
-      })
-    }
-    // Not locked — just their placement from a previous Generate Teams run. Locking them
-    // into a (possibly different) team now should simply replace that, not block on it.
-    await prisma.membership.delete({where: {id: existing.id}})
+  if (!enrollment) {
+    throw createError({
+      statusCode: 400,
+      message: "This student isn't enrolled for this team's semester and meeting day.",
+    })
   }
 
-  return membershipService.createMembership({teamId, studentId, isMentor: false, locked})
+  // Delete + create in one transaction so a failed create never loses the old placement.
+  return prisma.$transaction(async (tx) => {
+    // A student can only hold one non-mentor membership per semester — check across all
+    // teams in that semester, not just this one, before locking them in.
+    const existing = await tx.membership.findFirst({
+      where: {studentId, isMentor: false, Team: {semesterId: team.semesterId}},
+    })
+    if (existing) {
+      if (existing.locked && !replaceLocked) {
+        throw createError({
+          statusCode: 400,
+          message: 'This student is already locked into a team this semester. Unlock it first.',
+        })
+      }
+      // Not locked — just their placement from a previous Generate Teams run. Locking them
+      // into a (possibly different) team now should simply replace that, not block on it.
+      await tx.membership.delete({where: {id: existing.id}})
+    }
+
+    return tx.membership.create({
+      data: {teamId, studentId, isMentor: false, locked},
+      include: MEMBERSHIP_INCLUDE,
+    })
+  })
 })
