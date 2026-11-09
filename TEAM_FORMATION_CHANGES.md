@@ -12,7 +12,7 @@ Staff wanted to place certain 3200 students into teams *before* running the main
 
 ### 1. Lock a student into a team manually
 
-Section **"3. Lock 3200 Students"** lists every 3200 student for the selected semester/day with their ranked project choices. Pick a team from the dropdown, hit **Lock** — that student is placed immediately and skipped by the algorithm from then on. **Unlock** undoes it. Locking a student who already has an unlocked placement (e.g. from a prior Generate Teams run) correctly replaces it instead of erroring.
+Section **"3. Lock 3200 Students"** lists every 3200 student for the selected semester/day with their ranked project choices. Pick a team from the dropdown, hit **Lock** — that student is placed immediately and skipped by the algorithm from then on. **Unlock** clears the lock and leaves the student on that team as an ordinary member, so the next Generate Teams can move them. Locking a student who already has an unlocked placement (e.g. from a prior Generate Teams run) correctly replaces it instead of erroring.
 
 ### 2. Let the algorithm suggest placements first
 
@@ -41,7 +41,7 @@ A checkbox (off by default) shows each student's choice rank next to their name.
 
 ### 6. Lock a whole team and re-run the algorithm on the rest — iterative mode
 
-Every team, in the always-visible team list *and* in the generated results, has a **Lock Team / Unlock Team** button. Locking a team locks every current member at once. Hit **Generate Teams** again and locked teams are left completely untouched (same database rows) while everyone else re-solves. Repeat as many rounds as needed.
+Every team, in the always-visible team list *and* in the generated results, has a **Lock Team / Unlock Team** button. Locking a team locks every current member at once. Hit **Generate Teams** again and locked members stay put (same database rows) while everyone else re-solves. A locked team with spare seats can still receive new students. Repeat as many rounds as needed.
 
 ### 7. Move a student to a different team after results are in
 
