@@ -1,114 +1,92 @@
 # Team Formation Changes — What's New
 
-Everything added to the **Team Formation** page on the `3200-team-lock` branch, pushed to the shared repo. This file + `BRANCH_SETUP.md` (same folder) are the handoff: read both before touching this code in a new session.
+What the **Team Formation** page does on this branch. Read this and `BRANCH_SETUP.md` (same folder) before working on this code.
 
 ## The problem this solves
 
-Staff wanted to place certain 3200 students into teams *before* running the main algorithm on everyone else — so a returning student, or a student with special circumstances, can be locked into the right team first, and the algorithm only has to figure out everyone else around them. This grew into a full iterative workflow: generate, lock the teams you like, regenerate for the rest, repeat — plus the ability to manually fix individual students after the fact.
+Staff wanted to place certain 3200 students into teams *before* running the main algorithm on everyone else, so a returning student or a student with special circumstances can be locked into the right team first. That grew into a full workflow: generate, lock the teams you like, regenerate for the rest, and fix individual students by hand, always with each student's preferences in view.
 
-**Two contributors on this branch:** this session (Claude, working with the repo owner) and a teammate, Diego Valle, who independently built the minimum-3200-per-team requirement and a separate solver-lock mechanism. Those were merged in — see "The Diego merge" section below for what that actually involved and what got reconciled.
+## The steps
 
-## What was built
+The page shows **one step at a time**. A step bar at the top shows where you are, with Back/Next at the bottom.
 
-### 1. Lock a student into a team manually
+- **Moving between steps.** You can always go back to a step you've reached. Forward goes through Next, which waits for the data the step needs (the reason shows beside Next):
+  1. **Semester & Day** needs a semester. The team list here is read-only (name, partner, members, a "Locked" label).
+  2. **Bid File** needs saved bids for that semester/day. If bids are already saved, the step shows a summary and a **Replace bid file** button instead of the upload box. Replace warns what a re-upload does: students in the file are updated and their choices replaced, students not in the file are kept, and existing teams don't change until you generate again.
+  3. **Lock 3200s** is optional. See below.
+  4. **Generate** needs teams with members (generated now or earlier) before Next.
+  5. **Arrange Teams**: the board. See below.
+- Changing the semester or day starts over at step 1. Nothing auto-advances.
+- Editing note: `UStepper` treats a *numeric* `v-model` as a 0-based index, so `activeSection` (1–5) is bound through a `stepIndex` computed.
 
-Section **"3. Lock 3200 Students"** lists every 3200 student for the selected semester/day with their ranked project choices. Pick a team from the dropdown, hit **Lock** — that student is placed immediately and skipped by the algorithm from then on. **Unlock** clears the lock and leaves the student on that team as an ordinary member, so the next Generate Teams can move them. Locking a student who already has an unlocked placement (e.g. from a prior Generate Teams run) correctly replaces it instead of erroring.
+## Step 3: Lock 3200 students (optional)
 
-### 2. Let the algorithm suggest placements first
+- **Min/Max 3200 per Project** are always visible, because they also drive Generate Teams. Max defaults to 4, so one popular project can't absorb all the 3200s. Min defaults to **1**, so every project needs at least one 3200. If there aren't enough 3200 students, generation fails with a message saying how many more are needed.
+- Everything else is folded behind **Show 3200 students**:
+  - **Lock one student:** pick a team from their dropdown and hit **Lock**. The dropdown is ordered by that student's own ranking, with a returning project flagged. Locked students are skipped by Generate Teams. **Unlock** clears the lock and leaves the student on their team.
+  - **Suggest Placements** runs the algorithm on the unlocked 3200s only. It guarantees 1st or 2nd choice where possible, falls back to 3rd only when capacity forces it (flagged), and sets aside students who never bid. Each suggestion pre-fills the dropdown with a reason. **Lock All Suggested** locks them.
+  - **Lock all** locks every unlocked 3200 into the team picked in their dropdown, or else the team they're on now. **Unlock all** keeps students on their current team and only clears the lock. Both ask for confirmation first.
 
-**"Suggest Placements"** runs the algorithm on just the unlocked 3200 students:
-- Guarantees each student their **1st or 2nd choice** whenever possible, falling back to **3rd choice** only if capacity genuinely requires it (clearly flagged when it happens)
-- Sets aside any student who **never submitted a bid**, instead of letting them block everyone else
+## Step 5: Arrange Teams
 
-Each suggestion pre-fills the team dropdown and explains why. Review, adjust anything that looks wrong, then lock individually or hit **"Lock All Suggested"**.
+- **All teams:** every team for the semester/day is a square in a grid. Each member shows the rank they gave that team (green 1st/2nd, amber 3rd, grey lower or unranked) and a **3200** tag where it applies. Each square has **Set aside**, **Improve** and a lock button. Locked teams sort last and can't be set aside.
+- **Workbench:** teams you set aside (button or drag) sit side by side above the grid. Drag students between them; while dragging, each team shows that student's rank for it. Each card has Improve, Lock and Put back (×). Locking a team sends it back to the grid. The Workbench is only a view: only moves and locks are saved.
+- **Every Workbench row** shows the student's **major**. With exactly two teams on the Workbench, it also shows **"here [rank] · there [rank]"**.
+- **Compare and swap:** click a student to see their major, full ranking and what moving to each other Workbench team would mean. Then click a student on another Workbench team to get a **swap preview**: both students' before → after ranks, majors and rankings. Nothing saves until **Move** or **Confirm swap**. Warnings appear when someone would end up on a lower-ranked team, a team goes over max or under min size, or the 3200 min/max breaks. They don't block, because the decision is staff's.
+- **Improve (one team):** lists each student on the team with their major, 3200 status and current rank, and offers a **Move** (to a team with room) or **Swap** (with someone who loses nothing) toward a team they ranked higher, across all teams for the day. Applying it sets both teams aside so you can see the result. When there's no fix, it says why for each higher choice: full, this team would drop below the minimum size, they're this team's only 3200, that team is at the 3200 max, that team is locked, or no bid submitted.
+- A moved student keeps their lock state (`lock.post.ts` `replaceLocked`).
 
-### 3. Live, honest labeling everywhere you look
+### Design rule: computed, not AI
 
-- The reason text updates live as you change the dropdown.
-- The dropdown is ordered by that student's own ranking, with their returning project (if any) flagged right in the list.
-- Note: "returning" only activates once there's real multi-semester history in the database — Spring 2026 is currently the only semester with saved data.
-
-### 4. Min/max 3200-per-project range
-
-One combined control in section 3: **Min 3200 per Project** / **Max 3200 per Project**, both respected by **Suggest Placements** *and* **Generate Teams**.
-
-- **Max** defaults to 4 — stops one popular project absorbing all the 3200s.
-- **Min** defaults to **1** (every project needs at least one 3200) — this is Diego's intentional design (see below), not something this session chose. It's tight by nature; if there genuinely aren't enough 3200 students, it fails with a specific error telling you exactly how many more are needed, rather than failing silently.
-
-### 5. Optional choice-rank display, and a 3200 badge, in the final results
-
-A checkbox (off by default) shows each student's choice rank next to their name. A small "3200" badge is always visible on 3200 students in the results.
-
-### 6. Lock a whole team and re-run the algorithm on the rest — iterative mode
-
-Every team, in the always-visible team list *and* in the generated results, has a **Lock Team / Unlock Team** button. Locking a team locks every current member at once. Hit **Generate Teams** again and locked members stay put (same database rows) while everyone else re-solves. A locked team with spare seats can still receive new students. Repeat as many rounds as needed.
-
-### 7. Move a student to a different team after results are in
-
-Each student in the generated results has a **Move** button. Opens a panel showing their **major** and **full ranked choices** (so you can judge whether the move actually helps them), a team dropdown sorted by their own preferences, and a **"Lock in new team"** checkbox. Left unchecked by default — the move stays fully flexible, a future Generate Teams run (or another manual move) can still touch that student freely.
-
-### 8. Pin teams
-
-A bookmark icon on every team, in both the always-visible list and the results. **Purely visual** — doesn't touch the algorithm or the database on its own. Lets staff flag "I'm considering this one" before committing. A **"Lock All Pinned"** button appears once anything's pinned, to commit to all of them in one click.
-
-### 9. Step-by-step page layout
-
-Every section header is clickable; only one section's body is open at a time, and it auto-advances as you complete each step (pick a semester → bid upload opens; upload succeeds → lock section opens). Nothing is ever permanently hidden — click any header to jump back to it.
+Placement help must be **computed with fixed, explainable rules, not decided by AI**. Improve and the swap warnings are deterministic, rank-based rules with no external calls: the same data always gives the same answer. Don't add AI or LLM-based placement or recommendations without asking the team first.
 
 ## The Diego merge
 
-Diego's branch added a parallel implementation of the same "minimum 3200" idea (`min_3200_per_team`, a separate UI field) plus a from-scratch locking mechanism (locks passed fresh on every solve call via `locked_student_assignments`/`locked_teams`, instead of being saved in the database). When the branches were merged:
+Diego's branch added a parallel implementation of the "minimum 3200" idea (`min_3200_per_team`) plus a separate locking mechanism (locks passed on every solve call via `locked_student_assignments`/`locked_teams`, instead of being saved in the database). When the branches were merged:
 
-- Diego's separate `min_3200_per_team` field and UI block did **not** survive — only this session's `min_upperclass_per_project` mechanism remains connected to anything.
-- Diego's ephemeral lock-passing mechanism is still present in `team_generator.py` (dormant — nothing in this app's actual UI/API populates those config keys, since this session's DB-backed `Membership.locked` approach is what the app actually uses). It's untested-by-use but has its own regression tests (`test_locking.py`).
-- **Real bug found and fixed:** the merge left the minimum-3200 default inconsistent between the Python solver, the UI's default value, and a hardcoded assumption in the shared `test.ts` regression script. Investigated thoroughly, confirmed Diego's own test suite (`test_minimum_3200.py`) proves the default-of-1 behavior was *intentional* on his part (not an accident), and reconciled everything to that: default is 1 everywhere now, consistently. Verified by running `test.ts`, `test_minimum_3200.py`, and `test_locking.py` together — all green.
+- Only `min_upperclass_per_project` is connected to the UI. Diego's separate `min_3200_per_team` field did not survive.
+- Diego's lock-passing mechanism is still in `team_generator.py` but unused: the app uses the database-backed `Membership.locked`. It has its own regression tests (`test_locking.py`).
+- A merge bug left the minimum-3200 default inconsistent between the solver, the UI and `test.ts`. Diego's `test_minimum_3200.py` shows the default of 1 is intentional, so it's 1 everywhere now. `test.ts`, `test_minimum_3200.py` and `test_locking.py` all pass.
 
-**Worth raising with Diego:** the default-of-1 is tight (needs roughly one 3200 student per team) — same caveat flagged to the repo owner earlier applies to his design too.
+## How to use it
 
-## How to use it, step by step
+1. **Semester & Day:** pick a semester and meeting day.
+2. **Bid File:** upload the bid CSV if nothing is saved yet.
+3. **Lock 3200s (optional):** set the min/max range. Use Show 3200 students to suggest and lock placements.
+4. **Generate:** set team sizes and hit Generate Teams.
+5. **Arrange Teams:** use Improve to spot students who could be happier. Set aside the teams you want to fix, then compare, move or swap students. Lock the teams you're done with.
+6. To re-solve everyone who isn't locked, go back to Generate and run it again.
 
-1. Go to **Team Formation**, pick a **Semester** and **Meeting Day**
-2. (Optional) Upload a bid CSV if this semester/day hasn't been imported yet
-3. In section 3, hit **Suggest Placements** — review each suggested team + reason, adjust for any that look wrong
-4. Hit **Lock All Suggested** (or lock individuals one at a time)
-5. In section 4, set your min/max 3200 range, hit **Generate Teams**
-6. Review the results — lock or pin whole teams you're happy with, move individual students if something looks off
-7. Hit **Generate Teams** again to re-solve just the rest — repeat as needed
+## What's still open
 
-## What's still open / not built yet
+- **Text-response skill matching:** using students' free-text answers to break ties for a contested spot. It would need to stay rule-based (see the design rule).
+- **Scale change for oversubscribed choices:** weighting lower-ranked choices more when a student's top picks are full, for both 2200 and 3200 students. Same piece of work as the item above.
+- **Students with no team yet:** the board doesn't show students who aren't on any team. See also the `no-bid-students` branch (PR #13).
+- **Majors vs. projects:** majors are shown, but projects have no "majors wanted" field, so the app can't judge major fit.
+- **Red/green lock-status colouring:** requested, but the scope wasn't confirmed.
 
-- **Text-response skill matching** — using students' free-text experience answers to help break ties between students competing for the same spot. Not built; this is also the real fix for arbitrary tie-breaking when two students score identically for one contested spot.
-- **Scale change for oversubscribed choices** — boosting the weight of lower-ranked choices when a student's top picks are already full. Applies to both 2200 and 3200 students; not built. (Same backlog item as the tie-break fix above — they're one piece of work.)
-- **Fall 2026 data** — no real student-ID roster exists for that semester yet.
-- **Bidless students** (never submitted a bid at all) — not addressed; needs a decision on manual-add UI vs. documentation-only approach, and whether assignment-by-major is automatic or staff-picked.
-- **Red/green lock-status coloring** — a UI polish request from the repo owner's team lead, not yet built, and scope (individual-student locks only, or everywhere locking shows up) wasn't confirmed before work moved to other priorities.
+## Bugs fixed along the way
 
-Full detail on these, plus a live/editable list either of you can add to, is in the backlog tool described below.
-
-## Bugs fixed along the way (not new features, but worth knowing)
-
-- The solver only ever tried spawning `python`, not `python3` — fixed to try both.
-- `ortools` wasn't installed on this machine — installed it.
-- Lock Team / Unlock Team only appeared after clicking "Generate Teams" that page load — moved to the always-visible team list.
+- The solver only tried spawning `python`, not `python3`. It now tries both.
 - The minimum-3200 default inconsistency from the Diego merge (see above).
 
-## Files changed (for reference)
+## Files changed
 
 | File | What changed |
 |---|---|
-| `prisma/schema.prisma` + migration | Added a `locked` field to team memberships |
-| `server/services/CPSAT/team_generator.py` | 3200-only suggestion solver; main solver respects locked students, min/max 3200-per-project, Diego's dormant lock-passing mechanism, specific infeasibility errors |
-| `server/services/CPSAT/ortools.ts` | Wires through config/caps; python3-vs-python fix |
-| `server/services/CPSAT/test_locking.py`, `test_minimum_3200.py` | Diego's regression tests (both passing) |
-| `server/services/membershipService.ts` | Typed the new `locked` field |
-| `server/api/team-formation/lock.post.ts` | Lock/unlock one student; now also used for the flexible "Move" feature (`locked` param, defaults true) |
-| `server/api/team-formation/lock.delete.ts` | Unlock one student |
-| `server/api/team-formation/lock-team.post.ts` | Bulk lock/unlock a whole team (also powers "Lock All Pinned") |
-| `server/api/team-formation/suggest-locks.post.ts` | Runs the 3200-only suggestion solve |
-| `server/api/team-formation/generate.post.ts` | Skips locked students, preserves placements, passes through 3200 caps |
-| `app/pages/team-formation.vue` | All UI: lock/suggest section, lock-team controls, move panel, pin feature, step-by-step accordion |
-| `BRANCH_SETUP.md` | Setup steps for anyone pulling this branch fresh |
+| `prisma/schema.prisma` + migration | `locked` field on team memberships |
+| `server/services/CPSAT/team_generator.py` | 3200-only suggestion solver; main solver respects locks and the min/max 3200 range, with specific infeasibility errors |
+| `server/services/CPSAT/ortools.ts` | Passes config through; python3/python fix |
+| `server/services/CPSAT/test_locking.py`, `test_minimum_3200.py` | Diego's regression tests |
+| `server/services/membershipService.ts` | Typed `locked` field |
+| `server/api/team-formation/lock.post.ts` | Place/lock one student (`locked`, default true); `replaceLocked` (default false) lets a board move replace a locked placement |
+| `server/api/team-formation/lock.delete.ts` | Unlock one student (clears the lock, keeps the placement) |
+| `server/api/team-formation/lock-team.post.ts` | Lock/unlock a whole team |
+| `server/api/team-formation/suggest-locks.post.ts` | 3200-only suggestion solve |
+| `server/api/team-formation/generate.post.ts` | Skips locked students, keeps their placements, passes 3200 caps |
+| `app/pages/team-formation.vue` | All UI: the steps, step 3 locking, the Arrange Teams board, Improve, compare and swap |
+| `BRANCH_SETUP.md` | Setup steps for this branch |
 
-## How everything was verified
+## How it was verified
 
-No test runner existed in this repo before Diego added unittest-based ones for his pieces. This session's verification: synthetic solver tests for each new constraint, the full-scale `test.ts` re-run after every solver change, and repeated real end-to-end runs against the actual Spring 2026 roster through the live app (signed in via the dev-mode OTP logged to console) — including creating isolated throwaway test students for the Move feature, confirming correct behavior, then fully deleting them. Real locked data from independent testing (by the repo owner) was identified and left untouched throughout.
+There's no test runner for the UI. The solver changes are covered by `test.ts` and Diego's unittest files. The page was tested by hand in the running app against **Fall 2026 test data** (fake `f26wtest`/`f26ttest` student IDs), covering the step gating, saved-bids summary, folded step 3, Lock all/Unlock all, Improve, moves, and compare and swap. The data was checked to be unchanged afterwards, and Spring 2026's real locked data was not touched. `nuxi typecheck` isn't available in this repo (no `vue-tsc`), so templates were checked by compiling the page with `@vue/compiler-sfc`.

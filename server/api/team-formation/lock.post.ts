@@ -7,17 +7,21 @@
  *   - Freely moving a student to a different team after results are already in
  *     (locked: false) — stays open to being changed again by hand or overwritten by
  *     the next Generate Teams run, exactly as flexible as an unassigned student.
- * Body: { teamId: string, studentId: string, locked?: boolean }
+ *   - Dragging a student between teams on the Team Board (replaceLocked: true) — the
+ *     drag itself is the staff decision, so an existing locked placement is replaced
+ *     too instead of requiring an unlock first.
+ * Body: { teamId: string, studentId: string, locked?: boolean, replaceLocked?: boolean }
  */
 
 import {prisma} from '#server/utils/prisma'
 import {MEMBERSHIP_INCLUDE} from '#server/services/membershipService'
 
 export default defineEventHandler(async (event) => {
-  const {teamId, studentId, locked = true} = await readBody<{
+  const {teamId, studentId, locked = true, replaceLocked = false} = await readBody<{
     teamId: string
     studentId: string
     locked?: boolean
+    replaceLocked?: boolean
   }>(event)
 
   if (!teamId || !studentId) {
@@ -52,7 +56,7 @@ export default defineEventHandler(async (event) => {
       where: {studentId, isMentor: false, Team: {semesterId: team.semesterId}},
     })
     if (existing) {
-      if (existing.locked) {
+      if (existing.locked && !replaceLocked) {
         throw createError({
           statusCode: 400,
           message: 'This student is already locked into a team this semester. Unlock it first.',
