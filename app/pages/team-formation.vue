@@ -521,8 +521,8 @@
     balance_gender: true,
   })
 
-  // Defaults to 1 (every team needs a 3200) per the solver's own default — set to 0
-  // yourself if there genuinely aren't enough 3200 students to go around this semester.
+  // Defaults to 1 (every team needs a 3200) per the solver's own default. The "Force at
+  // least one CS 3200" checkbox toggles it between 1 and 0.
   const minUpperclassPerProject = ref(1)
 
   const generating = ref(false)
@@ -889,9 +889,9 @@
         guaranteeing each one their 1st or 2nd choice whenever possible, and pre-fills
         the team below with a reason. Review it, then lock individually or all at once.
         Max above also applies when you hit Generate Teams later, so a popular project
-        can't absorb all the 3200s and leave another project without one. Min is 1 by
-        default (every project gets a 3200) and only applies to Generate Teams. It's
-        tight by nature (roughly one 3200 per project), so set it to 0 to turn it off.
+        can't absorb all the 3200s and leave another project without one. "Force at least
+        one CS 3200" is on by default and only applies to Generate Teams. It's tight by
+        nature (roughly one 3200 per project), so uncheck it to turn it off.
         Generation fails with a clear message if there genuinely aren't enough 3200
         students to meet it.
       </p>
