@@ -1,64 +1,117 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import type { ColorPalette, GraphDisplaySettings } from '../types'
-import { getSemesterLabel } from '../data'
-import {
-  recoveryItems,
-  restoreItem,
-  permanentlyDeleteItem,
-  projectAssignmentRemovals,
-} from '../contentStore'
+  import { ref } from 'vue'
+  import type { ColorPalette, GraphDisplaySettings } from '../types'
+  import { getSemesterLabel } from '../data'
+  import {
+    recoveryItems,
+    restoreItem,
+    permanentlyDeleteItem,
+    projectAssignmentRemovals,
+  } from '../contentStore'
 
-const props = defineProps<{
-  theme: 'light' | 'dark'
-  palette: ColorPalette
-  graphDisplay: GraphDisplaySettings
-}>()
+  const props = defineProps<{
+    theme: 'light' | 'dark'
+    palette: ColorPalette
+    graphDisplay: GraphDisplaySettings
+  }>()
 
-const emit = defineEmits<{
-  setTheme: [theme: 'light' | 'dark']
-  updateColor: [key: keyof ColorPalette, value: string]
-  updateGraphSetting: [key: keyof GraphDisplaySettings, value: GraphDisplaySettings[keyof GraphDisplaySettings]]
-  reset: []
-  resetGraphs: []
-}>()
+  const emit = defineEmits<{
+    setTheme: [theme: 'light' | 'dark']
+    updateColor: [key: keyof ColorPalette, value: string]
+    updateGraphSetting: [
+      key: keyof GraphDisplaySettings,
+      value: GraphDisplaySettings[keyof GraphDisplaySettings],
+    ]
+    reset: []
+    resetGraphs: []
+  }>()
 
-const colorOptions: { key: keyof ColorPalette; label: string; description: string }[] = [
-  { key: 'primary', label: 'Primary color', description: 'Headings, controls, and key actions' },
-  { key: 'accent', label: 'Accent color', description: 'Links, highlights, and active states' },
-  { key: 'background', label: 'Page background', description: 'Main workspace background' },
-  { key: 'card', label: 'Card background', description: 'Dashboard cards and table surfaces' },
-  { key: 'secondary', label: 'Secondary surface', description: 'Table headers and subtle panels' },
-  { key: 'foreground', label: 'Primary text', description: 'Main body and table text' },
-  { key: 'mutedForeground', label: 'Secondary text', description: 'Descriptions and supporting labels' },
-  { key: 'border', label: 'Border color', description: 'Cards, dividers, and form controls' },
-  { key: 'navigationBackground', label: 'Navigation background', description: 'Sidebar behind Dashboard, Students, Projects, and other pages' },
-  { key: 'navigationText', label: 'Navigation text', description: 'Page labels and EPICS branding in the sidebar' },
-  { key: 'navigationActive', label: 'Active navigation color', description: 'Selected page indicator and navigation highlights' },
-  { key: 'chartText', label: 'Graph text', description: 'Axis labels, values, and chart legends' },
-  { key: 'chartGrid', label: 'Graph grid lines', description: 'Reference lines behind chart data' },
-  { key: 'classChart', label: 'Class-standing graph', description: 'Bars in the class-standing chart' },
-  { key: 'majorChart', label: 'Major-distribution graph', description: 'Bars in the major-distribution chart' },
-  { key: 'genderChart', label: 'Gender graph · Primary', description: 'First segment in the gender chart' },
-  { key: 'genderChartSecondary', label: 'Gender graph · Secondary', description: 'Second segment in the gender chart' },
-  { key: 'raceChart', label: 'Race and ethnicity graph', description: 'Bars in the race and ethnicity chart' },
-]
-const pendingRecovery = ref<{ key: string; action: 'restore' | 'delete' } | null>(null)
+  const colorOptions: { key: keyof ColorPalette; label: string; description: string }[] = [
+    { key: 'primary', label: 'Primary color', description: 'Headings, controls, and key actions' },
+    { key: 'accent', label: 'Accent color', description: 'Links, highlights, and active states' },
+    { key: 'background', label: 'Page background', description: 'Main workspace background' },
+    { key: 'card', label: 'Card background', description: 'Dashboard cards and table surfaces' },
+    {
+      key: 'secondary',
+      label: 'Secondary surface',
+      description: 'Table headers and subtle panels',
+    },
+    { key: 'foreground', label: 'Primary text', description: 'Main body and table text' },
+    {
+      key: 'mutedForeground',
+      label: 'Secondary text',
+      description: 'Descriptions and supporting labels',
+    },
+    { key: 'border', label: 'Border color', description: 'Cards, dividers, and form controls' },
+    {
+      key: 'navigationBackground',
+      label: 'Navigation background',
+      description: 'Sidebar behind Dashboard, Students, Projects, and other pages',
+    },
+    {
+      key: 'navigationText',
+      label: 'Navigation text',
+      description: 'Page labels and EPICS branding in the sidebar',
+    },
+    {
+      key: 'navigationActive',
+      label: 'Active navigation color',
+      description: 'Selected page indicator and navigation highlights',
+    },
+    {
+      key: 'chartText',
+      label: 'Graph text',
+      description: 'Axis labels, values, and chart legends',
+    },
+    {
+      key: 'chartGrid',
+      label: 'Graph grid lines',
+      description: 'Reference lines behind chart data',
+    },
+    {
+      key: 'classChart',
+      label: 'Class-standing graph',
+      description: 'Bars in the class-standing chart',
+    },
+    {
+      key: 'majorChart',
+      label: 'Major-distribution graph',
+      description: 'Bars in the major-distribution chart',
+    },
+    {
+      key: 'genderChart',
+      label: 'Gender graph · Primary',
+      description: 'First segment in the gender chart',
+    },
+    {
+      key: 'genderChartSecondary',
+      label: 'Gender graph · Secondary',
+      description: 'Second segment in the gender chart',
+    },
+    {
+      key: 'raceChart',
+      label: 'Race and ethnicity graph',
+      description: 'Bars in the race and ethnicity chart',
+    },
+  ]
+  const pendingRecovery = ref<{ key: string; action: 'restore' | 'delete' } | null>(null)
 
-function updateColor(event: Event, key: keyof ColorPalette) {
-  emit('updateColor', key, (event.target as HTMLInputElement).value)
-}
+  function updateColor(event: Event, key: keyof ColorPalette) {
+    emit('updateColor', key, (event.target as HTMLInputElement).value)
+  }
 
-function confirmRecoveryAction() {
-  if (!pendingRecovery.value) return
-  if (pendingRecovery.value.action === 'restore') restoreItem(pendingRecovery.value.key)
-  else permanentlyDeleteItem(pendingRecovery.value.key)
-  pendingRecovery.value = null
-}
+  function confirmRecoveryAction() {
+    if (!pendingRecovery.value) return
+    if (pendingRecovery.value.action === 'restore') restoreItem(pendingRecovery.value.key)
+    else permanentlyDeleteItem(pendingRecovery.value.key)
+    pendingRecovery.value = null
+  }
 
-function formatDeletedAt(value: string) {
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
-}
+  function formatDeletedAt(value: string) {
+    return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(
+      new Date(value)
+    )
+  }
 </script>
 
 <template>
@@ -77,8 +130,12 @@ function formatDeletedAt(value: string) {
         <p>Each mode keeps its own color choices.</p>
       </div>
       <div class="mode-switcher">
-        <button :class="{ active: theme === 'light' }" @click="emit('setTheme', 'light')">Light</button>
-        <button :class="{ active: theme === 'dark' }" @click="emit('setTheme', 'dark')">Dark</button>
+        <button :class="{ active: theme === 'light' }" @click="emit('setTheme', 'light')">
+          Light
+        </button>
+        <button :class="{ active: theme === 'dark' }" @click="emit('setTheme', 'dark')">
+          Dark
+        </button>
       </div>
     </section>
 
@@ -95,7 +152,13 @@ function formatDeletedAt(value: string) {
           <span>Font Family</span>
           <select
             :value="graphDisplay.fontFamily"
-            @change="emit('updateGraphSetting', 'fontFamily', ($event.target as HTMLSelectElement).value as GraphDisplaySettings['fontFamily'])"
+            @change="
+              emit(
+                'updateGraphSetting',
+                'fontFamily',
+                ($event.target as HTMLSelectElement).value as GraphDisplaySettings['fontFamily']
+              )
+            "
           >
             <option value="Inter">Inter</option>
             <option value="Roboto Slab">Roboto Slab</option>
@@ -109,7 +172,13 @@ function formatDeletedAt(value: string) {
             min="10"
             max="18"
             :value="graphDisplay.fontSize"
-            @input="emit('updateGraphSetting', 'fontSize', Number(($event.target as HTMLInputElement).value))"
+            @input="
+              emit(
+                'updateGraphSetting',
+                'fontSize',
+                Number(($event.target as HTMLInputElement).value)
+              )
+            "
           />
         </label>
         <label>
@@ -119,7 +188,13 @@ function formatDeletedAt(value: string) {
             min="10"
             max="20"
             :value="graphDisplay.valueFontSize"
-            @input="emit('updateGraphSetting', 'valueFontSize', Number(($event.target as HTMLInputElement).value))"
+            @input="
+              emit(
+                'updateGraphSetting',
+                'valueFontSize',
+                Number(($event.target as HTMLInputElement).value)
+              )
+            "
           />
         </label>
         <label>
@@ -129,7 +204,13 @@ function formatDeletedAt(value: string) {
             min="5"
             max="16"
             :value="graphDisplay.barThickness"
-            @input="emit('updateGraphSetting', 'barThickness', Number(($event.target as HTMLInputElement).value))"
+            @input="
+              emit(
+                'updateGraphSetting',
+                'barThickness',
+                Number(($event.target as HTMLInputElement).value)
+              )
+            "
           />
         </label>
         <label>
@@ -140,7 +221,13 @@ function formatDeletedAt(value: string) {
             max="420"
             step="10"
             :value="graphDisplay.classChartHeight"
-            @input="emit('updateGraphSetting', 'classChartHeight', Number(($event.target as HTMLInputElement).value))"
+            @input="
+              emit(
+                'updateGraphSetting',
+                'classChartHeight',
+                Number(($event.target as HTMLInputElement).value)
+              )
+            "
           />
         </label>
         <label>
@@ -151,7 +238,13 @@ function formatDeletedAt(value: string) {
             max="420"
             step="10"
             :value="graphDisplay.genderChartHeight"
-            @input="emit('updateGraphSetting', 'genderChartHeight', Number(($event.target as HTMLInputElement).value))"
+            @input="
+              emit(
+                'updateGraphSetting',
+                'genderChartHeight',
+                Number(($event.target as HTMLInputElement).value)
+              )
+            "
           />
         </label>
       </div>
@@ -161,7 +254,9 @@ function formatDeletedAt(value: string) {
       <div class="panel-heading">
         <div>
           <h2>Recovery</h2>
-          <p>Removed students and projects stay here until they are restored or permanently deleted.</p>
+          <p>
+            Removed students and projects stay here until they are restored or permanently deleted.
+          </p>
         </div>
         <span class="pin-count">{{ recoveryItems.length }} items</span>
       </div>
@@ -185,8 +280,18 @@ function formatDeletedAt(value: string) {
             <button class="cancel-button" @click="pendingRecovery = null">Cancel</button>
           </div>
           <div v-else class="confirm-actions">
-            <button class="secondary-button" @click="pendingRecovery = { key: item.key, action: 'restore' }">Restore</button>
-            <button class="remove-button" @click="pendingRecovery = { key: item.key, action: 'delete' }">Delete Forever</button>
+            <button
+              class="secondary-button"
+              @click="pendingRecovery = { key: item.key, action: 'restore' }"
+            >
+              Restore
+            </button>
+            <button
+              class="remove-button"
+              @click="pendingRecovery = { key: item.key, action: 'delete' }"
+            >
+              Delete Forever
+            </button>
           </div>
         </div>
       </div>
@@ -197,16 +302,25 @@ function formatDeletedAt(value: string) {
       <div class="panel-heading">
         <div>
           <h2>Project Assignment History</h2>
-          <p>Students removed from projects remain documented here without deleting their program record.</p>
+          <p>
+            Students removed from projects remain documented here without deleting their program
+            record.
+          </p>
         </div>
         <span class="pin-count">{{ projectAssignmentRemovals.length }} changes</span>
       </div>
       <div v-if="projectAssignmentRemovals.length" class="recovery-list">
-        <div v-for="change in projectAssignmentRemovals.slice(0, 20)" :key="change.id" class="recovery-row">
+        <div
+          v-for="change in projectAssignmentRemovals.slice(0, 20)"
+          :key="change.id"
+          class="recovery-row"
+        >
           <div>
             <span class="pinned-type">Removed from project</span>
             <div class="strong-cell">{{ change.studentName }} · {{ change.projectName }}</div>
-            <div class="muted-cell">{{ getSemesterLabel(change.semesterId) }} · {{ formatDeletedAt(change.removedAt) }}</div>
+            <div class="muted-cell">
+              {{ getSemesterLabel(change.semesterId) }} · {{ formatDeletedAt(change.removedAt) }}
+            </div>
             <div v-if="change.note" class="student-status-note">{{ change.note }}</div>
           </div>
         </div>
@@ -239,26 +353,29 @@ function formatDeletedAt(value: string) {
         </div>
       </section>
 
-      <section class="settings-preview" :style="{
-        '--preview-background': palette.background,
-        '--preview-card': palette.card,
-        '--preview-foreground': palette.foreground,
-        '--preview-primary': palette.primary,
-        '--preview-secondary': palette.secondary,
-        '--preview-muted': palette.mutedForeground,
-        '--preview-accent': palette.accent,
-        '--preview-border': palette.border,
-        '--preview-navigation-background': palette.navigationBackground,
-        '--preview-navigation-text': palette.navigationText,
-        '--preview-navigation-active': palette.navigationActive,
-        '--preview-chart-text': palette.chartText,
-        '--preview-chart-grid': palette.chartGrid,
-        '--preview-class-chart': palette.classChart,
-        '--preview-major-chart': palette.majorChart,
-        '--preview-gender-chart': palette.genderChart,
-        '--preview-gender-chart-secondary': palette.genderChartSecondary,
-        '--preview-race-chart': palette.raceChart,
-      }">
+      <section
+        class="settings-preview"
+        :style="{
+          '--preview-background': palette.background,
+          '--preview-card': palette.card,
+          '--preview-foreground': palette.foreground,
+          '--preview-primary': palette.primary,
+          '--preview-secondary': palette.secondary,
+          '--preview-muted': palette.mutedForeground,
+          '--preview-accent': palette.accent,
+          '--preview-border': palette.border,
+          '--preview-navigation-background': palette.navigationBackground,
+          '--preview-navigation-text': palette.navigationText,
+          '--preview-navigation-active': palette.navigationActive,
+          '--preview-chart-text': palette.chartText,
+          '--preview-chart-grid': palette.chartGrid,
+          '--preview-class-chart': palette.classChart,
+          '--preview-major-chart': palette.majorChart,
+          '--preview-gender-chart': palette.genderChart,
+          '--preview-gender-chart-secondary': palette.genderChartSecondary,
+          '--preview-race-chart': palette.raceChart,
+        }"
+      >
         <div class="settings-label">Live palette preview</div>
         <div class="preview-navigation">
           <strong>EPICS</strong>
@@ -272,7 +389,11 @@ function formatDeletedAt(value: string) {
         <div class="preview-graphs">
           <div><span>Class</span><i class="preview-bar class-bar" /></div>
           <div><span>Major</span><i class="preview-bar major-bar" /></div>
-          <div><span>Gender</span><i class="preview-bar gender-bar" /><i class="preview-bar gender-secondary-bar" /></div>
+          <div>
+            <span>Gender</span><i class="preview-bar gender-bar" /><i
+              class="preview-bar gender-secondary-bar"
+            />
+          </div>
           <div><span>Race</span><i class="preview-bar race-bar" /></div>
         </div>
         <div class="preview-card">

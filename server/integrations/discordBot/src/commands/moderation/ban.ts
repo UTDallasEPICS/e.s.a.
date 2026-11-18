@@ -4,7 +4,7 @@ import {
   ApplicationCommandOptionType,
   PermissionFlagsBits,
   GuildMember,
-} from 'discord.js';
+} from 'discord.js'
 
 const banCommand = {
   name: 'ban',
@@ -37,29 +37,26 @@ const banCommand = {
    * @param {ChatInputCommandInteraction} interaction
    */
   callback: async (client: Client, interaction: ChatInputCommandInteraction) => {
-    const targetUserId = interaction.options.get('target-user')?.value as string;
-    const reason =
-      (interaction.options.get('reason')?.value as string) || 'No reason provided';
+    const targetUserId = interaction.options.get('target-user')?.value as string
+    const reason = (interaction.options.get('reason')?.value as string) || 'No reason provided'
 
-    await interaction.deferReply();
+    await interaction.deferReply()
 
-    const targetUser = await interaction.guild?.members.fetch(targetUserId);
+    const targetUser = await interaction.guild?.members.fetch(targetUserId)
 
     if (!targetUser) {
-      interaction.editReply('User not found.');
-      return;
+      interaction.editReply('User not found.')
+      return
     }
 
     try {
-      await targetUser.ban({ reason });
-      await interaction.editReply(
-        `User ${targetUser.user.tag} was banned\nReason: ${reason}`
-      );
+      await targetUser.ban({ reason })
+      await interaction.editReply(`User ${targetUser.user.tag} was banned\nReason: ${reason}`)
     } catch (error) {
-      console.log(`There was an error when banning: ${error}`);
-      await interaction.editReply(`There was an error when banning: ${error}`);
+      console.log(`There was an error when banning: ${error}`)
+      await interaction.editReply(`There was an error when banning: ${error}`)
     }
   },
-};
+}
 
-export default banCommand;
+export default banCommand

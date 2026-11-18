@@ -4,7 +4,7 @@ import {
   ApplicationCommandOptionType,
   GuildMember,
   Role,
-} from "discord.js";
+} from 'discord.js'
 
 const removeRoleCommand = {
   name: 'removerole',
@@ -37,25 +37,25 @@ const removeRoleCommand = {
    * @param {ChatInputCommandInteraction} interaction
    */
   callback: async (client: Client, interaction: ChatInputCommandInteraction) => {
-    const targetUserId = interaction.options.get("target-user")?.value as string;
-    await interaction.deferReply();
+    const targetUserId = interaction.options.get('target-user')?.value as string
+    await interaction.deferReply()
 
-    const targetUser = await interaction.guild?.members.fetch(targetUserId) as GuildMember;
-    const role = await interaction.options.getRole("role") as Role;
+    const targetUser = (await interaction.guild?.members.fetch(targetUserId)) as GuildMember
+    const role = (await interaction.options.getRole('role')) as Role
 
     if (!targetUser || !role) {
-      interaction.editReply('User or role not found.');
-      return;
+      interaction.editReply('User or role not found.')
+      return
     }
 
     try {
-      await targetUser.roles.remove(role);
-      interaction.editReply(`Role ${role.name} removed from ${targetUser.user.tag}.`);
+      await targetUser.roles.remove(role)
+      interaction.editReply(`Role ${role.name} removed from ${targetUser.user.tag}.`)
     } catch (error) {
-      console.error(error);
-      interaction.editReply('Failed to remove role.');
+      console.error(error)
+      interaction.editReply('Failed to remove role.')
     }
   },
-};
+}
 
-export default removeRoleCommand;
+export default removeRoleCommand

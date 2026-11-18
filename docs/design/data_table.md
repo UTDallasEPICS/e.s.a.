@@ -78,16 +78,16 @@ const props = defineProps<{
 }>()
 ```
 
-| Prop         | Type                       | Required | Purpose                                                                                                                       |
-| ------------ | --------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `data`       | `T[]`                       | Yes      | The fetched rows for this table. `DataTable` never mutates or re-fetches this — it's read-only input, re-registered into `staging` on every change. |
+| Prop         | Type                        | Required | Purpose                                                                                                                                                                                                      |
+| ------------ | --------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `data`       | `T[]`                       | Yes      | The fetched rows for this table. `DataTable` never mutates or re-fetches this — it's read-only input, re-registered into `staging` on every change.                                                          |
 | `columns`    | `DataTableColumn<T>[]`      | Yes      | The column configuration — see §4. Can be a plain array or a `computed` (both `ProjectsTab` and `StudentsTab` use a computed, since their semester-specific columns only exist once a semester is selected). |
-| `rowKey`     | `(row: T) => string`        | Yes      | Extracts a stable id from a fetched row. Almost always `(row) => row.id`. Used as the staging-store key and as `UTable`'s `get-row-id`. |
-| `staging`    | `StagedChanges`             | Yes      | The store from `useStagedChanges()`, owned by the parent tab (one store per table). `DataTable` registers rows into it and reads/writes every cell through it. |
-| `loading`    | `boolean`                   | No       | Forwarded to `UTable`'s built-in loading bar. Pass the tab's fetch status (`status === 'pending'`). |
-| `expandable` | `boolean`                   | No       | Renders the chevron expand column and lets `#expanded` be used. Every current tab passes this — minor-record detail (teams, contacts, enrollments) lives there. |
-| `saving`     | `boolean`                   | No       | Disables every editable input and toolbar button while a save request is in flight, and puts a spinner on Confirm. Pass the `saving` ref returned by `useStagedSave()`. |
-| `newRow`     | `() => Record<string, any>` | No       | A factory returning a blank draft row. **Its presence is what turns the Add button on** — omit it and no Add button renders at all (a table that only supports editing existing rows). |
+| `rowKey`     | `(row: T) => string`        | Yes      | Extracts a stable id from a fetched row. Almost always `(row) => row.id`. Used as the staging-store key and as `UTable`'s `get-row-id`.                                                                      |
+| `staging`    | `StagedChanges`             | Yes      | The store from `useStagedChanges()`, owned by the parent tab (one store per table). `DataTable` registers rows into it and reads/writes every cell through it.                                               |
+| `loading`    | `boolean`                   | No       | Forwarded to `UTable`'s built-in loading bar. Pass the tab's fetch status (`status === 'pending'`).                                                                                                          |
+| `expandable` | `boolean`                   | No       | Renders the chevron expand column and lets `#expanded` be used. Every current tab passes this — minor-record detail (teams, contacts, enrollments) lives there.                                              |
+| `saving`     | `boolean`                   | No       | Disables every editable input and toolbar button while a save request is in flight, and puts a spinner on Confirm. Pass the `saving` ref returned by `useStagedSave()`.                                      |
+| `newRow`     | `() => Record<string, any>` | No       | A factory returning a blank draft row. **Its presence is what turns the Add button on** — omit it and no Add button renders at all (a table that only supports editing existing rows).                       |
 
 ## 3. Emits
 
@@ -98,22 +98,31 @@ const emit = defineEmits<{
 }>()
 ```
 
-| Event    | Payload         | Fired when                                                                                     |
-| -------- | ----------------- | -------------------------------------------------------------------------------------------------- |
-| `save`   | `StagedPayload`   | Confirm is pressed. The payload is exactly `staging.payload()` — see `staging.md` §1.5. `DataTable` does **not** clear the store or call any API itself; the parent's handler (normally `useStagedSave()`'s `onSave`) owns that. |
-| `cancel` | none              | Cancel is pressed, **after** `staging.reset()` has already run and the row selection has been cleared. Most tabs don't listen to this — `staging.reset()` alone is enough — but it's available for a tab that needs to react (e.g. closing something else that was open). |
+| Event    | Payload         | Fired when                                                                                                                                                                                                                                                                |
+| -------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `save`   | `StagedPayload` | Confirm is pressed. The payload is exactly `staging.payload()` — see `staging.md` §1.5. `DataTable` does **not** clear the store or call any API itself; the parent's handler (normally `useStagedSave()`'s `onSave`) owns that.                                          |
+| `cancel` | none            | Cancel is pressed, **after** `staging.reset()` has already run and the row selection has been cleared. Most tabs don't listen to this — `staging.reset()` alone is enough — but it's available for a tab that needs to react (e.g. closing something else that was open). |
 
 ## 4. Slots
 
-| Slot       | Scope                                                                 | Rendered when             |
-| ---------- | ---------------------------------------------------------------------- | ---------------------------- |
+| Slot       | Scope                                                                            | Rendered when                                                                                                                                                                                                                             |
+| ---------- | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `expanded` | `{ row: T, rowId: string, state: StageState, isNew: boolean, deleted: boolean }` | `expandable` is true and a row is toggled open. `row` is the **merged** record (fetched + staged edits, via `staging.rows.merge`, or the draft itself for a new row) — always read current values from it, never from the original fetch. |
 
 Example (`ProjectsTab.vue`):
 
 ```html
-<DataTable :data="rows" :columns="columns" :row-key="(row) => row.id" :staging="staging"
-           :loading="status === 'pending'" :saving="saving" expandable :new-row="newRow" @save="onSave">
+<DataTable
+  :data="rows"
+  :columns="columns"
+  :row-key="(row) => row.id"
+  :staging="staging"
+  :loading="status === 'pending'"
+  :saving="saving"
+  expandable
+  :new-row="newRow"
+  @save="onSave"
+>
   <template #expanded="{ row, rowId, deleted }">
     <ProjectRowExpansion :row-id="rowId" :row="row" :disabled="deleted" />
   </template>
@@ -141,16 +150,16 @@ export interface DataTableColumn<T> {
 }
 ```
 
-| Field         | Type                        | Meaning                                                                                                                              |
-| ------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `id`          | `string`                     | The column's identity for sort/filter state and `TableColumn.id`. Usually equal to `accessorKey`, except a proxy column that needs a distinct id from the field it displays (e.g. Partners' `primaryName` column vs. a differently-keyed field). |
-| `header`      | `string`                     | The column header label.                                                                                                             |
-| `accessorKey` | `keyof T & string`           | The field on the **row** this column reads by default (`staging.fields.get(rowId, accessorKey)`). Still required even when `editable.child` redirects both read and write elsewhere — see §5.4. |
-| `format`      | `(value, row) => string`     | Formats the raw value for display. Applied to non-editable cells, and (via `displayValueFor`) to the value used for filtering and sorting — so a column storing an id but showing a name (e.g. Project's Partner) filters/sorts on the name, not the id. |
-| `sortable`    | `boolean`                    | Shows the sort control in the header (§6.2). Numbers sort numerically; everything else via `localeCompare` (case-insensitive). |
-| `filter`      | `DataTableFilter`            | See §5.1. Omit for no filter control.                                                                                                 |
-| `editable`    | `DataTableEditable<T>`       | See §5.2. Omit for a read-only column — `format(value, row)` (or the stringified value) renders and nothing else.                     |
-| `required`    | `boolean`                    | Blocks Confirm while the field is blank **on a staged row** (new, edited, or with a dirty child) — see §7. Has no effect on a clean, unstaged row even if the underlying value is empty. |
+| Field         | Type                     | Meaning                                                                                                                                                                                                                                                  |
+| ------------- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`          | `string`                 | The column's identity for sort/filter state and `TableColumn.id`. Usually equal to `accessorKey`, except a proxy column that needs a distinct id from the field it displays (e.g. Partners' `primaryName` column vs. a differently-keyed field).         |
+| `header`      | `string`                 | The column header label.                                                                                                                                                                                                                                 |
+| `accessorKey` | `keyof T & string`       | The field on the **row** this column reads by default (`staging.fields.get(rowId, accessorKey)`). Still required even when `editable.child` redirects both read and write elsewhere — see §5.4.                                                          |
+| `format`      | `(value, row) => string` | Formats the raw value for display. Applied to non-editable cells, and (via `displayValueFor`) to the value used for filtering and sorting — so a column storing an id but showing a name (e.g. Project's Partner) filters/sorts on the name, not the id. |
+| `sortable`    | `boolean`                | Shows the sort control in the header (§6.2). Numbers sort numerically; everything else via `localeCompare` (case-insensitive).                                                                                                                           |
+| `filter`      | `DataTableFilter`        | See §5.1. Omit for no filter control.                                                                                                                                                                                                                    |
+| `editable`    | `DataTableEditable<T>`   | See §5.2. Omit for a read-only column — `format(value, row)` (or the stringified value) renders and nothing else.                                                                                                                                        |
+| `required`    | `boolean`                | Blocks Confirm while the field is blank **on a staged row** (new, edited, or with a dirty child) — see §7. Has no effect on a clean, unstaged row even if the underlying value is empty.                                                                 |
 
 ### 5.1 `DataTableFilter`
 
@@ -161,9 +170,9 @@ export interface DataTableFilter {
 }
 ```
 
-| `type`        | Control                          | Matching                                                                                     |
-| ------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `'search'`    | `UInput`, xs, width 28              | Case-insensitive substring match against the column's **display** value (`format` applied).       |
+| `type`          | Control                               | Matching                                                                                                                                                                                                                                                                         |
+| --------------- | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `'search'`      | `UInput`, xs, width 28                | Case-insensitive substring match against the column's **display** value (`format` applied).                                                                                                                                                                                      |
 | `'multiselect'` | `USelectMenu`, multiple, xs, width 28 | Row passes if its **raw** value (not `format`-ed) is included in the selected set. `options` is required — the values are matched with `String(rawValue)`, so they should line up with the enum's actual wire values (see enumColumn, §5.5). An empty selection filters nothing. |
 
 Both render a clear (✗) button once a value is set, and setting/clearing a filter resets to page 1.
@@ -184,24 +193,24 @@ export interface DataTableEditable<T> {
 
 `type` picks the input rendered in an editable cell:
 
-| `type`            | Input                                | Extra options used                                                          |
-| ------------------ | -------------------------------------- | -------------------------------------------------------------------------------- |
-| `'text'`           | `UInput`, ghost variant                 | —                                                                                 |
-| `'select'`         | `USelectMenu`                           | `options` — the item list (`valueKey: 'value'`)                                  |
-| `'switch'`         | `USwitch`                               | —                                                                                 |
-| `'record-search'`  | `RecordSearchInput` (§9)                | `search`, `displayLabel`, `toValue`, `fromValue` — see §5.3                       |
+| `type`            | Input                    | Extra options used                                          |
+| ----------------- | ------------------------ | ----------------------------------------------------------- |
+| `'text'`          | `UInput`, ghost variant  | —                                                           |
+| `'select'`        | `USelectMenu`            | `options` — the item list (`valueKey: 'value'`)             |
+| `'switch'`        | `USwitch`                | —                                                           |
+| `'record-search'` | `RecordSearchInput` (§9) | `search`, `displayLabel`, `toValue`, `fromValue` — see §5.3 |
 
 ### 5.3 `record-search` columns
 
 For a column that edits a reference to another major record (e.g. a Project row's Partner), `type:
 'record-search'` wraps `RecordSearchInput` (§9):
 
-| Option         | Signature                          | Purpose                                                                                          |
-| -------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `search`       | `(query: string) => Promise<any[]>`   | Runs on every search-term change. Typically a client-side filter over an already-fetched directory list (`utils/search.ts`'s `searchPartners`/`searchStudents`/`searchProjects`), not a new request. |
-| `displayLabel` | `(item: any) => string`               | How a result (and the current selection) is labeled. Defaults to `item?.name`.                    |
-| `toValue`      | `(item: any) => any`                  | Converts the picked record into what gets staged (usually its id).                                 |
-| `fromValue`    | `(value: any, row: T) => any`         | The inverse — converts the staged/stored value back into the record object the input displays.     |
+| Option         | Signature                           | Purpose                                                                                                                                                                                              |
+| -------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `search`       | `(query: string) => Promise<any[]>` | Runs on every search-term change. Typically a client-side filter over an already-fetched directory list (`utils/search.ts`'s `searchPartners`/`searchStudents`/`searchProjects`), not a new request. |
+| `displayLabel` | `(item: any) => string`             | How a result (and the current selection) is labeled. Defaults to `item?.name`.                                                                                                                       |
+| `toValue`      | `(item: any) => any`                | Converts the picked record into what gets staged (usually its id).                                                                                                                                   |
+| `fromValue`    | `(value: any, row: T) => any`       | The inverse — converts the staged/stored value back into the record object the input displays.                                                                                                       |
 
 ```ts
 // ProjectsTab.vue
@@ -286,7 +295,7 @@ collection, childId, field)` call.
 never resolve against a **staged-new** child — a brand-new project row's Meeting Day has no team yet to
 proxy onto and stays read-only until a team is added via the Team Creation Modal.
 
-A column need not be *always* a proxy — a column with `editable` but no `child` at all is a plain
+A column need not be _always_ a proxy — a column with `editable` but no `child` at all is a plain
 row-field editor (the common case); `child` only applies when the column is specifically routing to a
 nested record.
 
@@ -298,10 +307,19 @@ when a column needs a mix `textColumn`/`enumColumn` don't cover (e.g. anything u
 
 ```ts
 /** Sortable, search-filtered, inline text-editable — the default for a plain string field. */
-function textColumn<T>(accessorKey: keyof T & string, header: string, extra?: Partial<DataTableColumn<T>>): DataTableColumn<T>
+function textColumn<T>(
+  accessorKey: keyof T & string,
+  header: string,
+  extra?: Partial<DataTableColumn<T>>
+): DataTableColumn<T>
 
 /** Multiselect-filtered and select-editable over one set of enum options. */
-function enumColumn<T>(accessorKey: keyof T & string, header: string, options: SelectOption[], extra?: Partial<DataTableColumn<T>>): DataTableColumn<T>
+function enumColumn<T>(
+  accessorKey: keyof T & string,
+  header: string,
+  options: SelectOption[],
+  extra?: Partial<DataTableColumn<T>>
+): DataTableColumn<T>
 ```
 
 ```ts
@@ -333,13 +351,13 @@ server-typed values, e.g. `PROJECT_STATUS_OPTIONS: SelectOption<ProjectStatus>[]
 Rendered above the table. Every button issues no request of its own — only Confirm ever emits `save`,
 and Cancel only resets the local store; nothing here talks to the network directly.
 
-| Button  | Icon | Enabled when                             | Result                                                                                                                  |
-| ------- | ---- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Add     | `i-heroicons-plus` (+)  | `newRow` prop given, not `saving` | Appends one blank draft row (from `newRow`), pre-expanded and (if `expandable`) opened. Each click adds another. |
-| Delete  | `i-heroicons-minus` (−) | ≥1 row selected, not `saving` | Marks every selected row for deletion and clears the selection (a selected staged-new row is dropped instead, since there's nothing server-side to delete). |
+| Button  | Icon                               | Enabled when                                                | Result                                                                                                                                                                                                                                                                                           |
+| ------- | ---------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Add     | `i-heroicons-plus` (+)             | `newRow` prop given, not `saving`                           | Appends one blank draft row (from `newRow`), pre-expanded and (if `expandable`) opened. Each click adds another.                                                                                                                                                                                 |
+| Delete  | `i-heroicons-minus` (−)            | ≥1 row selected, not `saving`                               | Marks every selected row for deletion and clears the selection (a selected staged-new row is dropped instead, since there's nothing server-side to delete).                                                                                                                                      |
 | Undo    | `i-heroicons-arrow-uturn-left` (↺) | ≥1 selected row is new/edited/deletion-marked, not `saving` | Undoes each such selected row individually — drops an addition, restores an edited row (and its staged children) to original, unmarks a deletion — and clears the selection. Always rendered; a mix of clean and dirty rows in the selection still enables it, leaving the clean ones untouched. |
-| Confirm | `i-heroicons-check` (✓) | `staging.isDirty` and no row is invalid, not `saving` | Emits `save` with `staging.payload()`. Shows a spinner while `saving` is true. |
-| Cancel  | `i-heroicons-x-mark` (✗) | `staging.isDirty`, not `saving` | Calls `staging.reset()`, clears the row selection, emits `cancel`. |
+| Confirm | `i-heroicons-check` (✓)            | `staging.isDirty` and no row is invalid, not `saving`       | Emits `save` with `staging.payload()`. Shows a spinner while `saving` is true.                                                                                                                                                                                                                   |
+| Cancel  | `i-heroicons-x-mark` (✗)           | `staging.isDirty`, not `saving`                             | Calls `staging.reset()`, clears the row selection, emits `cancel`.                                                                                                                                                                                                                               |
 
 All five buttons render unconditionally (their `disabled` state carries the meaning) — there is no
 show/hide toggle based on dirtiness. A validation hint (`Fill in every required field to confirm.`)
@@ -350,23 +368,23 @@ renders inline in the toolbar whenever the store is dirty and any staged row is 
 Each header stacks: label (+ sort button if `sortable`), then the filter control if `filter` is set,
 then a clear button once that column's filter has a value.
 
-| Control               | Component                          | Behavior                                                                                       |
-| ------------------------ | -------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| Sort                     | `UButton` (ghost, xs)                  | Cycles **unset** (↕) → **ascending** (↑) → **descending** (↓) → unset. Sorting one column clears any other column's sort — only one active sort at a time. |
-| Filter — `'search'`      | `UInput` (xs, `w-28`)                  | Case-insensitive substring match on the column's **display** value (§5.1).                     |
-| Filter — `'multiselect'` | `USelectMenu` (multiple, xs, `w-28`)   | Row passes if its **raw** value is in the selected set; an empty selection filters nothing.      |
-| Filter clear             | `UButton` ✗ (ghost, xs)                | Rendered only while that column's filter has a value; clears it and resets to page 1.            |
+| Control                  | Component                            | Behavior                                                                                                                                                   |
+| ------------------------ | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Sort                     | `UButton` (ghost, xs)                | Cycles **unset** (↕) → **ascending** (↑) → **descending** (↓) → unset. Sorting one column clears any other column's sort — only one active sort at a time. |
+| Filter — `'search'`      | `UInput` (xs, `w-28`)                | Case-insensitive substring match on the column's **display** value (§5.1).                                                                                 |
+| Filter — `'multiselect'` | `USelectMenu` (multiple, xs, `w-28`) | Row passes if its **raw** value is in the selected set; an empty selection filters nothing.                                                                |
+| Filter clear             | `UButton` ✗ (ghost, xs)              | Rendered only while that column's filter has a value; clears it and resets to page 1.                                                                      |
 
 ### 6.3 Cells
 
-| Cell condition                                              | Rendering                                                                                     |
-| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| No `editable`, or `editable.child` resolves to `undefined`      | `format(value, row)` if given, else `String(value ?? '')`; blank renders as `—`.                    |
-| `editable`, not required, clean                                | The input for `editable.type` (§5.2), un-highlighted.                                              |
-| `editable`, value differs from original, on an **existing** row | Same input with a warning-colored ring (yellow outline) — `isEditedFor` is true.                   |
-| `editable`, on a **staged-new** row                             | Same input, **no** per-field ring — the whole row is already tinted green, so individual fields don't get their own outline. |
-| `editable`, `required`, blank, on a staged (new/edited/deleted-adjacent) row | Error-colored ring (red outline) instead of the warning ring — `invalid` takes precedence over `edited`. |
-| Row marked for deletion, or `saving` is true                    | Input is `disabled`.                                                                              |
+| Cell condition                                                               | Rendering                                                                                                                    |
+| ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| No `editable`, or `editable.child` resolves to `undefined`                   | `format(value, row)` if given, else `String(value ?? '')`; blank renders as `—`.                                             |
+| `editable`, not required, clean                                              | The input for `editable.type` (§5.2), un-highlighted.                                                                        |
+| `editable`, value differs from original, on an **existing** row              | Same input with a warning-colored ring (yellow outline) — `isEditedFor` is true.                                             |
+| `editable`, on a **staged-new** row                                          | Same input, **no** per-field ring — the whole row is already tinted green, so individual fields don't get their own outline. |
+| `editable`, `required`, blank, on a staged (new/edited/deleted-adjacent) row | Error-colored ring (red outline) instead of the warning ring — `invalid` takes precedence over `edited`.                     |
+| Row marked for deletion, or `saving` is true                                 | Input is `disabled`.                                                                                                         |
 
 The highlight precedence in code (`renderCell`): `invalid` (required+blank+dirty) beats `edited`, and
 `edited` only applies `!row.isNew` (new rows never get per-field highlighting). This is the field-level
@@ -377,22 +395,22 @@ half of the deletion > edit > addition precedence ui.md §2.3.1 describes at the
 Row-level tint comes from `STAGE_TINTS[row.state]` (`useStagedChanges.ts`), applied via `UTable`'s
 `meta.class.tr`:
 
-| `state`     | Tint                                                          |
-| ----------- | ----------------------------------------------------------------- |
-| `'new'`     | `bg-success-50` / `dark:bg-success-950/50` (green)                 |
-| `'edited'`  | `bg-info-50` / `dark:bg-info-950/50` (blue)                        |
-| `'deleted'` | `bg-error-50` / `dark:bg-error-950/50` (red)                       |
-| `'clean'`   | none                                                               |
+| `state`     | Tint                                               |
+| ----------- | -------------------------------------------------- |
+| `'new'`     | `bg-success-50` / `dark:bg-success-950/50` (green) |
+| `'edited'`  | `bg-info-50` / `dark:bg-info-950/50` (blue)        |
+| `'deleted'` | `bg-error-50` / `dark:bg-error-950/50` (red)       |
+| `'clean'`   | none                                               |
 
 `STAGE_TINTS` is exported precisely so expansion components can tint their own cards (team cards,
 contact cards, semester-info cards) with the same four colors — see staging.md §1.7.
 
 ### 6.5 Expand and select columns
 
-| Column   | Present            | Behavior                                                                                          |
-| -------- | -------------------- | ------------------------------------------------------------------------------------------------------ |
-| Expand   | `expandable` prop      | Per-row chevron toggling `#expanded`. Multiple rows can be expanded at once (`v-model:expanded` is a `Record<string, boolean>`, not a single id). |
-| Select   | Always                | Per-row checkbox plus a header checkbox with tri-state (all / indeterminate / none), scoped to the currently **filtered** rows (`filteredRows`), not the full unfiltered set. |
+| Column | Present           | Behavior                                                                                                                                                                      |
+| ------ | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Expand | `expandable` prop | Per-row chevron toggling `#expanded`. Multiple rows can be expanded at once (`v-model:expanded` is a `Record<string, boolean>`, not a single id).                             |
+| Select | Always            | Per-row checkbox plus a header checkbox with tri-state (all / indeterminate / none), scoped to the currently **filtered** rows (`filteredRows`), not the full unfiltered set. |
 
 Staged-new rows are selectable too — selecting one and pressing Delete drops it from the store outright
 rather than marking it (ui.md §2.3.1).
@@ -408,24 +426,24 @@ new row can never be filtered or sorted out of view, and never counts toward ano
 Changing the page size or the active filters resets to page 1 (a `watch` clamps `pageIndex` back to 0
 whenever it would exceed the new `pageCount`).
 
-| Control         | Component                              | Behavior                                                        |
-| ------------------ | ------------------------------------- | ----------------------------------------------------------------- |
-| Rows per page       | `USelectMenu` — 10 / 25 / 50 (`w-24`) | Changing the size resets to page 1.                                |
-| Page navigation      | `UPagination`                         | First (`<<`) / Previous (`<`) / Next (`>`) / Last (`>>`) plus page numbers. |
+| Control         | Component                             | Behavior                                                                    |
+| --------------- | ------------------------------------- | --------------------------------------------------------------------------- |
+| Rows per page   | `USelectMenu` — 10 / 25 / 50 (`w-24`) | Changing the size resets to page 1.                                         |
+| Page navigation | `UPagination`                         | First (`<<`) / Previous (`<`) / Next (`>`) / Last (`>>`) plus page numbers. |
 
 All client-side over the already-fetched `data` — there is no server-side paging, sorting, or
 filtering anywhere in this component.
 
 ### 6.7 Overall table states
 
-| State   | Condition                                        | Appearance                                                                 |
-| ----------- | ------------------------------------------------ | ---------------------------------------------------------------------- |
-| Loading     | `loading` prop true                              | `UTable`'s built-in loading bar                                        |
-| Empty       | `data` is empty and nothing is staged            | `UTable`'s default empty message                                       |
-| Clean       | Store not dirty                                  | Toolbar buttons besides Add/Delete disabled; no row highlighting        |
-| Dirty       | ≥1 staged addition, edit, or deletion            | Confirm/Cancel enabled; affected rows carry their green/blue/red highlight |
-| Invalid     | Dirty, and a staged row fails validation (§7)    | Confirm disabled; offending cells outlined red; toolbar hint shown      |
-| Saving      | Confirm pressed, requests in flight (`saving` prop) | Every input and toolbar button disabled; Confirm shows a spinner    |
+| State   | Condition                                           | Appearance                                                                 |
+| ------- | --------------------------------------------------- | -------------------------------------------------------------------------- |
+| Loading | `loading` prop true                                 | `UTable`'s built-in loading bar                                            |
+| Empty   | `data` is empty and nothing is staged               | `UTable`'s default empty message                                           |
+| Clean   | Store not dirty                                     | Toolbar buttons besides Add/Delete disabled; no row highlighting           |
+| Dirty   | ≥1 staged addition, edit, or deletion               | Confirm/Cancel enabled; affected rows carry their green/blue/red highlight |
+| Invalid | Dirty, and a staged row fails validation (§7)       | Confirm disabled; offending cells outlined red; toolbar hint shown         |
+| Saving  | Confirm pressed, requests in flight (`saving` prop) | Every input and toolbar button disabled; Confirm shows a spinner           |
 
 ---
 
@@ -462,7 +480,7 @@ every **staged** row (new, edited, or deletion-marked — `stagedRows`, not `dat
 resolved value is `undefined`, `null`, or `''`. A required column that's a `child` proxy with no
 resolvable target is skipped — there's nothing to validate on a cell that isn't rendering an input.
 A clean, un-staged row is never checked, even if a required field happens to be empty in the fetched
-data — validation only ever blocks *new or in-progress* edits.
+data — validation only ever blocks _new or in-progress_ edits.
 
 ---
 
@@ -487,8 +505,10 @@ function newRow() {
 }
 
 async function onSave(payload: StagedPayload) {
-  for (const record of payload.created) await $fetch('/api/foos', { method: 'POST', body: record.fields })
-  for (const record of payload.updated) await $fetch(`/api/foos/${record.id}`, { method: 'PUT', body: record.fields })
+  for (const record of payload.created)
+    await $fetch('/api/foos', { method: 'POST', body: record.fields })
+  for (const record of payload.updated)
+    await $fetch(`/api/foos/${record.id}`, { method: 'PUT', body: record.fields })
   for (const id of payload.deleted) await $fetch(`/api/foos/${id}`, { method: 'DELETE' })
   staging.reset()
   await refresh()
@@ -515,10 +535,10 @@ Projects/Students/Partners examples throughout this document.
 
 ## 9. Related components
 
-| Component                | Role                                                                                                    |
-| --------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `RecordSearchInput.vue`     | The async-search picker behind `editable.type === 'record-search'` (and reused directly inside modals/expansions for the same purpose). Props: `search`, `displayLabel`, `placeholder`, `disabled`, `highlight`, `color`; `v-model` is the selected record itself. Discards out-of-order search responses via a monotonic token. |
-| `ConfirmationModal.vue` / `useConfirm.ts` | Opened by `useStagedSave()` before a Confirm that includes deletions — not opened by `DataTable` itself. |
+| Component                                 | Role                                                                                                                                                                                                                                                                                                                             |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `RecordSearchInput.vue`                   | The async-search picker behind `editable.type === 'record-search'` (and reused directly inside modals/expansions for the same purpose). Props: `search`, `displayLabel`, `placeholder`, `disabled`, `highlight`, `color`; `v-model` is the selected record itself. Discards out-of-order search responses via a monotonic token. |
+| `ConfirmationModal.vue` / `useConfirm.ts` | Opened by `useStagedSave()` before a Confirm that includes deletions — not opened by `DataTable` itself.                                                                                                                                                                                                                         |
 
 ---
 

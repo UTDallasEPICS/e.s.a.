@@ -1,11 +1,11 @@
-import studentService from "#server/services/studentService";
+import studentService from '#server/services/studentService'
 
 export default defineEventHandler(async (event) => {
-  const id = getRouterParam(event, 'id');
+  const id = getRouterParam(event, 'id')
   if (!id) {
-    throw createError({statusCode: 400, statusMessage: 'Missing id parameter'});
+    throw createError({ statusCode: 400, statusMessage: 'Missing id parameter' })
   }
 
-  await studentService.deleteStudent(id);
-  return null;
-});
+  await studentService.deleteStudent(id)
+  return null
+})

@@ -1,15 +1,15 @@
-import choiceService from "#server/services/choiceService";
+import choiceService from '#server/services/choiceService'
 
 export default defineEventHandler(async (event) => {
-  const id = getRouterParam(event, 'id');
+  const id = getRouterParam(event, 'id')
   if (!id) {
-    throw createError({statusCode: 400, statusMessage: 'Missing id parameter'});
+    throw createError({ statusCode: 400, statusMessage: 'Missing id parameter' })
   }
 
-  const choice = await choiceService.getChoiceById(id);
+  const choice = await choiceService.getChoiceById(id)
   if (!choice) {
-    throw createError({statusCode: 404, statusMessage: 'Choice not found'});
+    throw createError({ statusCode: 404, statusMessage: 'Choice not found' })
   }
 
-  return choice;
-});
+  return choice
+})

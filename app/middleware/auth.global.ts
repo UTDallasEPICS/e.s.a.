@@ -1,7 +1,6 @@
 import { authClient } from '../utils/auth-client'
 
 export default defineNuxtRouteMiddleware(async (to) => {
-
   if (import.meta.dev && to.path === '/database-redesign') {
     return
   }

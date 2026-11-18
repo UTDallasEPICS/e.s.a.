@@ -1,41 +1,41 @@
-import {prisma} from "#server/utils/prisma";
+import { prisma } from '#server/utils/prisma'
 
 export interface ContactRead {
-  id: string;
-  partnerId: string;
-  name: string;
-  email: string;
-  phone: string | null;
-  isPrimary: boolean;
+  id: string
+  partnerId: string
+  name: string
+  email: string
+  phone: string | null
+  isPrimary: boolean
 }
 
 export interface ContactCreate {
-  partnerId: string;
-  name: string;
-  email: string;
-  phone?: string | null;
-  isPrimary?: boolean;
+  partnerId: string
+  name: string
+  email: string
+  phone?: string | null
+  isPrimary?: boolean
 }
 
 export interface ContactUpdate {
-  name?: string;
-  email?: string;
-  phone?: string | null;
-  isPrimary?: boolean;
+  name?: string
+  email?: string
+  phone?: string | null
+  isPrimary?: boolean
 }
 
 const getContactById = async (id: string): Promise<ContactRead | null> => {
   const contact = await prisma.contact.findUnique({
-    where: {id},
+    where: { id },
   })
-  return contact;
+  return contact
 }
 
 const createContact = async (data: ContactCreate): Promise<ContactRead> => {
   return await prisma.$transaction(async (tx) => {
-    const existingContactCount = await tx.contact.count({where: {partnerId: data.partnerId}});
+    const existingContactCount = await tx.contact.count({ where: { partnerId: data.partnerId } })
     return await tx.contact.create({
-      data: {...data, isPrimary: existingContactCount === 0},
+      data: { ...data, isPrimary: existingContactCount === 0 },
     })
   })
 }
@@ -60,7 +60,7 @@ const updateContact = async (id: string, data: ContactUpdate): Promise<ContactRe
 }
 
 const deleteContact = async (id: string): Promise<void> => {
-  await prisma.contact.delete({where: {id}});
+  await prisma.contact.delete({ where: { id } })
 }
 
 const contactService = {
@@ -68,6 +68,6 @@ const contactService = {
   createContact,
   updateContact,
   deleteContact,
-};
+}
 
-export default contactService;
+export default contactService

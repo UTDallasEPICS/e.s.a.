@@ -5,11 +5,25 @@
  * Response: { teamAssignments: Record<projectId, StudentWithChoices[]>, projects: Project[] }
  */
 
-import {generateTeamsORTools} from '#server/services/CPSAT/ortools'
-import type {Student as CPSATStudent, Project as CPSATProject, Gender as CPSATGender} from '#server/services//CPSAT/ortools'
-import type {CPSATConfig} from '#server/services//CPSAT/ortools'
-import {Year, ProjectType, Choice, Project, Class, ProjectMeetingDay, Enrollment, Gender, Season} from '@@/prisma/generated/client'
-import {prisma} from '#server/utils/prisma'
+import { generateTeamsORTools } from '#server/services/CPSAT/ortools'
+import type {
+  Student as CPSATStudent,
+  Project as CPSATProject,
+  Gender as CPSATGender,
+} from '#server/services//CPSAT/ortools'
+import type { CPSATConfig } from '#server/services//CPSAT/ortools'
+import {
+  Year,
+  ProjectType,
+  Choice,
+  Project,
+  Class,
+  ProjectMeetingDay,
+  Enrollment,
+  Gender,
+  Season,
+} from '@@/prisma/generated/client'
+import { prisma } from '#server/utils/prisma'
 
 type MeetingDay = 'WEDNESDAY' | 'THURSDAY'
 
@@ -42,42 +56,44 @@ const mapGender = (gender: Gender): CPSATGender => {
 }
 
 export default defineEventHandler(async (event) => {
-  const {semesterId, day, config} = await readBody<{
-    semesterId: string;
-    day: MeetingDay;
+  const { semesterId, day, config } = await readBody<{
+    semesterId: string
+    day: MeetingDay
     config?: CPSATConfig
   }>(event)
 
   if (!semesterId) {
-    throw createError({statusCode: 400, message: 'semesterId is required.'})
+    throw createError({ statusCode: 400, message: 'semesterId is required.' })
   }
 
   if (day !== 'WEDNESDAY' && day !== 'THURSDAY') {
-    throw createError({statusCode: 400, message: 'day is required and must be WEDNESDAY or THURSDAY.'})
+    throw createError({
+      statusCode: 400,
+      message: 'day is required and must be WEDNESDAY or THURSDAY.',
+    })
   }
 
   interface StudentWithChoices {
-    Choices: Choice[],
-    Enrollments: Enrollment[],
-    id: string,
-    firstName: string,
-    lastName: string,
-    netID: string,
-    email: string | null,
+    Choices: Choice[]
+    Enrollments: Enrollment[]
+    id: string
+    firstName: string
+    lastName: string
+    netID: string
+    email: string | null
   }
 
   // Fetch non-mentor students enrolled in that semester and day with their choices
   const students = await prisma.student.findMany({
     where: {
       isMentor: false,
-      Enrollments: {some: {semesterId, meetingDay: day}}
+      Enrollments: { some: { semesterId, meetingDay: day } },
     },
     include: {
-      Choices: {where: {semesterId}},
-      Enrollments: {where: {semesterId}}
-    }
-  });
-
+      Choices: { where: { semesterId } },
+      Enrollments: { where: { semesterId } },
+    },
+  })
 
   // Fetch active projects for this semester (those with a team in this semester)
   const teamsForRun = await prisma.team.findMany({
@@ -91,49 +107,53 @@ export default defineEventHandler(async (event) => {
   })
   const projects: Project[] = teamsForRun.map((team) => team.Project)
   const projectIdToDay = new Map<string, ProjectMeetingDay>(
-      teamsForRun.map((team) => [team.projectId, team.meetingDay] as const)
+    teamsForRun.map((team) => [team.projectId, team.meetingDay] as const)
   )
 
   if (!students.length) {
-    throw createError({statusCode: 400, message: 'No active students found.'})
+    throw createError({ statusCode: 400, message: 'No active students found.' })
   }
   if (!projects.length) {
-    throw createError({statusCode: 400, message: 'No projects found for this semester. Activate projects first.'})
+    throw createError({
+      statusCode: 400,
+      message: 'No projects found for this semester. Activate projects first.',
+    })
   }
 
-  const projectIdToName = new Map<string, string>(projects.map((p: Project) => [p.id, p.name] as const))
-  const projectIdToTeamId = new Map<string, string>(teamsForRun.map((team) => [team.projectId, team.id] as const))
+  const projectIdToName = new Map<string, string>(
+    projects.map((p: Project) => [p.id, p.name] as const)
+  )
+  const projectIdToTeamId = new Map<string, string>(
+    teamsForRun.map((team) => [team.projectId, team.id] as const)
+  )
   const mappedChoicesByStudentId = new Map<string, string[]>(
-      students.map((s) => {
-        const mapped = s.Choices
-            .slice()
-            .sort((a: Choice, b: Choice) => a.rank - b.rank)
-            .map((c: Choice) => projectIdToName.get(c.projectId))
-            .filter((name): name is string => !!name)
-        return [s.id, mapped] as const
-      })
+    students.map((s) => {
+      const mapped = s.Choices.slice()
+        .sort((a: Choice, b: Choice) => a.rank - b.rank)
+        .map((c: Choice) => projectIdToName.get(c.projectId))
+        .filter((name): name is string => !!name)
+      return [s.id, mapped] as const
+    })
   )
 
-  const remapClass =
-      (cls: Class) => cls == "EPCS_2200" ? "2200" : "3200";
-  const remapDay =
-      (day: ProjectMeetingDay) => day == "WEDNESDAY" ? "Wednesday" : "Thursday";
+  const remapClass = (cls: Class) => (cls == 'EPCS_2200' ? '2200' : '3200')
+  const remapDay = (day: ProjectMeetingDay) => (day == 'WEDNESDAY' ? 'Wednesday' : 'Thursday')
 
   // Determine each returning (3200) student's most recent prior-semester project,
   // for the returning-student bonus. Chronological ordering follows the same
   // year/season comparison pattern used elsewhere for semester recency.
-  const currentSemester = await prisma.semester.findUniqueOrThrow({where: {id: semesterId}})
-  const SEASON_ORDER: Record<Season, number> = {SPRING: 0, SUMMER: 1, FALL: 2}
-  const semesterRank = (s: {year: number; season: Season}) => s.year * 10 + SEASON_ORDER[s.season]
+  const currentSemester = await prisma.semester.findUniqueOrThrow({ where: { id: semesterId } })
+  const SEASON_ORDER: Record<Season, number> = { SPRING: 0, SUMMER: 1, FALL: 2 }
+  const semesterRank = (s: { year: number; season: Season }) => s.year * 10 + SEASON_ORDER[s.season]
   const currentRank = semesterRank(currentSemester)
 
   const priorMemberships = await prisma.membership.findMany({
     where: {
-      studentId: {in: students.map((s) => s.id)},
+      studentId: { in: students.map((s) => s.id) },
       isMentor: false,
-      Team: {Semester: {id: {not: semesterId}}},
+      Team: { Semester: { id: { not: semesterId } } },
     },
-    include: {Team: {include: {Project: true, Semester: true}}},
+    include: { Team: { include: { Project: true, Semester: true } } },
   })
 
   const previousProjectByStudentId = new Map<string, string>()
@@ -160,9 +180,9 @@ export default defineEventHandler(async (event) => {
     // Constraint on the Python side requires returning students to be 3200-level,
     // and the bonus only ever applies when the previous project is also a current choice.
     const previousProject =
-        cls === '3200' && priorProjectName && choices.includes(priorProjectName)
-            ? priorProjectName
-            : undefined
+      cls === '3200' && priorProjectName && choices.includes(priorProjectName)
+        ? priorProjectName
+        : undefined
 
     return {
       id: s.id,
@@ -189,24 +209,30 @@ export default defineEventHandler(async (event) => {
   // Run the CP-SAT algorithm (spawns a Python process)
   let cpsatResult
   try {
-    ;({assignments: cpsatResult} = await generateTeamsORTools(cpsatStudents, cpsatProjects, config))
+    ;({ assignments: cpsatResult } = await generateTeamsORTools(
+      cpsatStudents,
+      cpsatProjects,
+      config
+    ))
   } catch (err: any) {
-    throw createError({statusCode: 400, message: err?.message ?? 'Team generation failed.'})
+    throw createError({ statusCode: 400, message: err?.message ?? 'Team generation failed.' })
   }
 
   // cpsatResult keys are project names; convert back to projectId → StudentWithChoices[]
   const nameToId = new Map<string, string>(projects.map((p: Project) => [p.name, p.id] as const))
-  const idToStudent = new Map<string, StudentWithChoices>(students.map((s: StudentWithChoices) => [s.id, s] as const))
+  const idToStudent = new Map<string, StudentWithChoices>(
+    students.map((s: StudentWithChoices) => [s.id, s] as const)
+  )
 
   const assignmentsByProjectId: Record<string, StudentWithChoices[]> = Object.fromEntries(
-      projects.map((p: Project) => [p.id, [] as StudentWithChoices[]])
+    projects.map((p: Project) => [p.id, [] as StudentWithChoices[]])
   )
   for (const [projectName, cpsatStudentArr] of Object.entries(cpsatResult)) {
     const projectId = nameToId.get(projectName)
     if (projectId) {
       assignmentsByProjectId[projectId] = cpsatStudentArr
-          .map((cs: CPSATStudent) => idToStudent.get(cs.id))
-          .filter((s): s is StudentWithChoices => s !== undefined)
+        .map((cs: CPSATStudent) => idToStudent.get(cs.id))
+        .filter((s): s is StudentWithChoices => s !== undefined)
     }
   }
 
@@ -214,34 +240,40 @@ export default defineEventHandler(async (event) => {
   // assignments for this semester/day. Mentor memberships (assigned separately from
   // this algorithm) are left untouched.
   const memberships = Object.entries(assignmentsByProjectId).flatMap(([pId, members]) => {
-    return members.map(m => ({
+    return members.map((m) => ({
       teamId: projectIdToTeamId.get(pId)!,
       studentId: m.id,
     }))
   })
   await prisma.$transaction([
     prisma.membership.deleteMany({
-      where: {teamId: {in: teamsForRun.map((team) => team.id)}, isMentor: false},
+      where: { teamId: { in: teamsForRun.map((team) => team.id) }, isMentor: false },
     }),
-    prisma.membership.createMany({data: memberships}),
+    prisma.membership.createMany({ data: memberships }),
   ])
 
   const teamAssignments: Record<string, StudentWithChoices[]> = Object.fromEntries(
-      Object.entries(assignmentsByProjectId)
-          .map(([projectId, assignedStudents]) => {
-            const teamId = projectIdToTeamId.get(projectId)
-            return teamId ? ([teamId, assignedStudents] as const) : null
-          })
-          .filter((entry): entry is readonly [string, StudentWithChoices[]] => entry !== null)
+    Object.entries(assignmentsByProjectId)
+      .map(([projectId, assignedStudents]) => {
+        const teamId = projectIdToTeamId.get(projectId)
+        return teamId ? ([teamId, assignedStudents] as const) : null
+      })
+      .filter((entry): entry is readonly [string, StudentWithChoices[]] => entry !== null)
   )
 
-  const teamMeta: Record<string, {
-    projectId: string;
-    meetingDay: MeetingDay;
-    projectName: string
-  }> = Object.fromEntries(
-      teamsForRun.map((team) => [team.id, {projectId: team.projectId, meetingDay: day, projectName: team.Project.name}])
+  const teamMeta: Record<
+    string,
+    {
+      projectId: string
+      meetingDay: MeetingDay
+      projectName: string
+    }
+  > = Object.fromEntries(
+    teamsForRun.map((team) => [
+      team.id,
+      { projectId: team.projectId, meetingDay: day, projectName: team.Project.name },
+    ])
   )
 
-  return {teamAssignments, projects, teamMeta}
+  return { teamAssignments, projects, teamMeta }
 })

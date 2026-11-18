@@ -49,7 +49,7 @@ const updateSemester = async (id: string, data: SemesterUpdate): Promise<Semeste
 const deleteSemester = async (id: string): Promise<void> => {
   const semester = await prisma.semester.findUnique({
     where: { id },
-    include: { _count: { select: { Teams: true, Enrollments: true, Choices: true}}},
+    include: { _count: { select: { Teams: true, Enrollments: true, Choices: true } } },
   })
   if (!semester) {
     throw new Error('Semester not found.')

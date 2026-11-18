@@ -70,9 +70,7 @@
       <h1 class="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
         User Management
       </h1>
-      <p class="mt-1 text-gray-500 dark:text-gray-400">
-        Registered users of the application.
-      </p>
+      <p class="mt-1 text-gray-500 dark:text-gray-400">Registered users of the application.</p>
     </div>
 
     <div v-if="pending" class="space-y-4">
@@ -159,7 +157,9 @@
                 />
               </UTooltip>
 
-              <UTooltip :text="user.id === myId ? 'You cannot deactivate your own account' : undefined">
+              <UTooltip
+                :text="user.id === myId ? 'You cannot deactivate your own account' : undefined"
+              >
                 <UButton
                   label="Deactivate"
                   color="warning"
@@ -206,7 +206,11 @@
                 <p class="font-medium text-gray-900 dark:text-white">{{ user.name }}</p>
                 <p class="text-sm text-gray-500 dark:text-gray-400">{{ user.email }}</p>
               </div>
-              <UBadge :color="user.emailVerified ? 'success' : 'warning'" variant="subtle" size="sm">
+              <UBadge
+                :color="user.emailVerified ? 'success' : 'warning'"
+                variant="subtle"
+                size="sm"
+              >
                 {{ user.emailVerified ? 'Verified' : 'Pending' }}
               </UBadge>
             </div>

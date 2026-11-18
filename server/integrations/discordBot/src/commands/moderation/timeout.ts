@@ -4,7 +4,7 @@ import {
   ApplicationCommandOptionType,
   PermissionFlagsBits,
   GuildMember,
-} from "discord.js";
+} from 'discord.js'
 
 const timeoutCommand = {
   name: 'timeout',
@@ -43,32 +43,34 @@ const timeoutCommand = {
    * @param {ChatInputCommandInteraction} interaction
    */
   callback: async (client: Client, interaction: ChatInputCommandInteraction) => {
-    const targetUserId = interaction.options.get("target-user")!.value as string;
-    const timeoutDuration = interaction.options.get("duration")!.value as number; // Duration in minutes
-    const reason = interaction.options.get("reason")?.value as string || "No reason provided";
+    const targetUserId = interaction.options.get('target-user')!.value as string
+    const timeoutDuration = interaction.options.get('duration')!.value as number // Duration in minutes
+    const reason = (interaction.options.get('reason')?.value as string) || 'No reason provided'
 
-    await interaction.deferReply();
+    await interaction.deferReply()
 
     if (!interaction.guild) {
-      await interaction.editReply("This command can only be used in a server.");
-      return;
+      await interaction.editReply('This command can only be used in a server.')
+      return
     }
 
-    const targetUser = await interaction.guild.members.fetch(targetUserId) as GuildMember;
+    const targetUser = (await interaction.guild.members.fetch(targetUserId)) as GuildMember
 
     if (!targetUser) {
-      await interaction.editReply("User not found.");
-      return;
+      await interaction.editReply('User not found.')
+      return
     }
 
     try {
-      await targetUser.timeout(timeoutDuration * 60 * 1000, reason); // Convert minutes to milliseconds
-      await interaction.editReply(`User ${targetUser.user.tag} has been timed out for ${timeoutDuration} minutes. Reason: ${reason}`);
+      await targetUser.timeout(timeoutDuration * 60 * 1000, reason) // Convert minutes to milliseconds
+      await interaction.editReply(
+        `User ${targetUser.user.tag} has been timed out for ${timeoutDuration} minutes. Reason: ${reason}`
+      )
     } catch (error) {
-      console.error(error);
-      await interaction.editReply("Failed to timeout user.");
+      console.error(error)
+      await interaction.editReply('Failed to timeout user.')
     }
   },
-};
+}
 
-export default timeoutCommand;
+export default timeoutCommand

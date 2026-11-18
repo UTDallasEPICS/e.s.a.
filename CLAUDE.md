@@ -51,7 +51,7 @@ assignment, with an `isMentor` flag). Semester is first-class and most queries f
 (`user`, `session`, `account`, `verification`) are separate — a logged-in user is not linked to a `Student`.
 
 **Team formation** (`server/api/team-formation/generate.post.ts`) loads non-mentor students for a semester+day,
-translates Prisma rows into the CP-SAT wire types (which key on project *names*, not ids, and use their own enum
+translates Prisma rows into the CP-SAT wire types (which key on project _names_, not ids, and use their own enum
 spellings), shells out to `server/services/CPSAT/team_generator.py` via `ortools.ts`, then maps names back to ids.
 It post-processes: students with no valid choices get placed into undersized teams, undersized teams borrow from
 oversized ones, and the request 400s if minimum team size still can't be met. It writes `Membership` rows as a side
@@ -61,7 +61,7 @@ effect — calling it twice for a semester will duplicate memberships.
 (`running`/`stopped`/`error`) that `/api/discord/*` and `/api/github/*` start, stop, and query. Both degrade
 gracefully at runtime when `DISCORD_BOT_TOKEN` / `GITHUB_TOKEN` are absent, but `GithubManagement.ts` statically
 `import`s `@octokit/rest` at module top-level and Nitro bundles all of `server/api/**` into one module graph, so a
-missing package anywhere in it 500s *every* API route — check for an uninstalled top-level import first if routes
+missing package anywhere in it 500s _every_ API route — check for an uninstalled top-level import first if routes
 fail with `Cannot find package '...'`. `server/plugins/discordBot.ts` also auto-starts a bot at Nitro startup,
 duplicating `discordBotService` — be aware both paths exist before changing bot lifecycle.
 
@@ -94,7 +94,7 @@ files is indented one level under the tag, as in `auth.vue`/`app.vue`.
   multiple places (confirmations, record-search pickers, minor-record creation modals): `overlay.create(MyModal)`,
   then `await instance.open(props).result`, with the child emitting `close` with the payload — see `useConfirm.ts`.
 - **Types come from the server, not re-declared.** Import `XRead`/`XCreate`/`XUpdate` as `import type {...} from
-  '#server/services/xService'` — see any `*Tab.vue` for the pattern.
+'#server/services/xService'` — see any `*Tab.vue` for the pattern.
 - Auto-imports apply throughout `app/`: components and composables don't need explicit imports (Nuxt UI components
   and `useOverlay` are also auto-registered by `@nuxt/ui`) — except a type used inside `defineProps<T>()`/
   `defineEmits<T>()`, which `@vue/compiler-sfc` resolves from local imports, not auto-import, so keep those explicit.

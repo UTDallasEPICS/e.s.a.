@@ -69,8 +69,8 @@ Stack: Nuxt 4 + Nuxt UI v4 + Tailwind. All components live in `app/`; no other U
 
 `UApp` wrapping a full-height column: a sticky, blurred header over a `<main>` that renders `<NuxtPage />`.
 
-| Element      | Component                            | Behavior                                                     |
-| ------------ | ------------------------------------ | ------------------------------------------------------------ |
+| Element      | Component                            | Behavior                                                      |
+| ------------ | ------------------------------------ | ------------------------------------------------------------- |
 | Logo         | `NuxtLink` + `UIcon` (cube, primary) | "ESA" wordmark; navigates to `/`                              |
 | Navigation   | `Navbar.vue`                         | See §2.1                                                      |
 | Theme toggle | `UButton` (ghost, neutral)           | Toggles `useColorMode()` between light/dark; icon is sun/moon |
@@ -78,45 +78,45 @@ Stack: Nuxt 4 + Nuxt UI v4 + Tailwind. All components live in `app/`; no other U
 Container width is widened globally to `--ui-container: 95%` (`app/assets/css/main.css`), so pages using
 `UContainer` span nearly the full viewport.
 
-| Shell state | Trigger                   | Appearance                              |
-| ----------- | ------------------------- | --------------------------------------- |
-| Light       | `colorMode !== 'dark'`    | White surfaces, sun icon on the toggle   |
-| Dark        | `colorMode === 'dark'`    | `gray-900` surfaces, moon icon on toggle |
+| Shell state | Trigger                | Appearance                               |
+| ----------- | ---------------------- | ---------------------------------------- |
+| Light       | `colorMode !== 'dark'` | White surfaces, sun icon on the toggle   |
+| Dark        | `colorMode === 'dark'` | `gray-900` surfaces, moon icon on toggle |
 
 ### 1.2 Routes
 
-| Route             | File                        | Status                                                                                                       |
-| ----------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `/`               | `pages/index.vue`           | **Template boilerplate** — user list, profile-picture upload modal, logout. Not part of the ESA design.        |
-| `/auth`           | `pages/auth.vue`            | Implemented (§1.3)                                                                                            |
-| `/database`       | `pages/database.vue`        | Implemented (§3)                                                                                              |
-| `/team-formation` | `pages/team-formation.vue`  | Implemented (§4)                                                                                              |
-| `/automation`     | `pages/automation.vue`      | Placeholder — a single neutral `UAlert` reading "This page is not yet implemented."                            |
-| `/users`          | `pages/users.vue`           | Implemented, admin-only (§5)                                                                                    |
-| `/inactive`       | `pages/inactive.vue`        | Implemented (§1.4) — shown in place of any route while `session.user.active` is false                          |
+| Route             | File                       | Status                                                                                                  |
+| ----------------- | -------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `/`               | `pages/index.vue`          | **Template boilerplate** — user list, profile-picture upload modal, logout. Not part of the ESA design. |
+| `/auth`           | `pages/auth.vue`           | Implemented (§1.3)                                                                                      |
+| `/database`       | `pages/database.vue`       | Implemented (§3)                                                                                        |
+| `/team-formation` | `pages/team-formation.vue` | Implemented (§4)                                                                                        |
+| `/automation`     | `pages/automation.vue`     | Placeholder — a single neutral `UAlert` reading "This page is not yet implemented."                     |
+| `/users`          | `pages/users.vue`          | Implemented, admin-only (§5)                                                                            |
+| `/inactive`       | `pages/inactive.vue`       | Implemented (§1.4) — shown in place of any route while `session.user.active` is false                   |
 
 ### 1.3 Authentication
 
 `app/middleware/auth.global.ts` runs on every navigation:
 
-| Session | `user.active` | Target route              | Result                      |
-| ------- | -------------- | -------------------------- | ---------------------------- |
-| Present | —              | `/auth`                     | Redirect to `/`              |
-| Present | `false`        | anything but `/inactive`    | Redirect to `/inactive`      |
-| Present | `false`        | `/inactive`                  | Allowed                      |
-| Present | `true`         | `/inactive`                  | Redirect to `/`              |
-| Present | `true`         | `/users`, not `ADMIN`        | 403 "Admins only"            |
-| Present | `true`         | anything else                | Allowed                      |
-| Absent  | —              | `/auth`                     | Allowed                      |
-| Absent  | —              | anything else                | Redirect to `/auth`          |
+| Session | `user.active` | Target route             | Result                  |
+| ------- | ------------- | ------------------------ | ----------------------- |
+| Present | —             | `/auth`                  | Redirect to `/`         |
+| Present | `false`       | anything but `/inactive` | Redirect to `/inactive` |
+| Present | `false`       | `/inactive`              | Allowed                 |
+| Present | `true`        | `/inactive`              | Redirect to `/`         |
+| Present | `true`        | `/users`, not `ADMIN`    | 403 "Admins only"       |
+| Present | `true`        | anything else            | Allowed                 |
+| Absent  | —             | `/auth`                  | Allowed                 |
+| Absent  | —             | anything else            | Redirect to `/auth`     |
 
 **Login page** (`pages/auth.vue`) — a centered `UCard` titled "Login" containing a two-step `UForm` with a Zod
 schema that widens once the OTP has been sent. Email-OTP only; there is no password field.
 
-| State                        | Fields shown              | Submit button | On success                                   | On error                          |
-| ---------------------------- | ------------------------- | ------------- | -------------------------------------------- | --------------------------------- |
-| `isEmailSent === false`      | Email `UInput`            | "Send OTP"    | Success toast; advances to the OTP state      | Error toast with the auth message |
-| `isEmailSent === true`       | 6-digit `UPinInput` (otp) | "Login"       | External navigation to `/`                    | Error toast with the auth message |
+| State                   | Fields shown              | Submit button | On success                               | On error                          |
+| ----------------------- | ------------------------- | ------------- | ---------------------------------------- | --------------------------------- |
+| `isEmailSent === false` | Email `UInput`            | "Send OTP"    | Success toast; advances to the OTP state | Error toast with the auth message |
+| `isEmailSent === true`  | 6-digit `UPinInput` (otp) | "Login"       | External navigation to `/`               | Error toast with the auth message |
 
 Logging in requires an email that already exists in the `user` table. The OTP arrives by Nodemailer, or can be read
 from the `verification` table in Prisma Studio.
@@ -128,9 +128,9 @@ A new `user` row starts with `active = false` (`prisma/schema.prisma` default) u
 (`server/utils/auth.ts`) with `input: false`, so they ride along on `session.user` but a signed-in user can never
 set either on themselves through `updateUser`.
 
-| Layer    | Enforcement                                                                                                    |
-| -------- | --------------------------------------------------------------------------------------------------------------- |
-| Frontend | `auth.global.ts` (above) redirects any inactive session to `pages/inactive.vue` — a centered card explaining the account needs admin approval, with a Log Out button — and bounces an active session away from `/inactive`. |
+| Layer    | Enforcement                                                                                                                                                                                                                                                                                                                                           |
+| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Frontend | `auth.global.ts` (above) redirects any inactive session to `pages/inactive.vue` — a centered card explaining the account needs admin approval, with a Log Out button — and bounces an active session away from `/inactive`.                                                                                                                           |
 | Server   | `server/middleware/authMiddleware.ts` runs on every request; for a session where `user.active === false` it 403s any `/api/**` route other than `/api/auth/**`, so sign-in/sign-out/session calls keep working while every other endpoint (including the ones a page's SSR fetch would hit) is blocked regardless of what the frontend redirect does. |
 
 Because the Nitro middleware checks the session directly, an inactive user cannot reach any data endpoint by
@@ -144,13 +144,13 @@ calling it directly, even if a client-side redirect were bypassed.
 
 A `UNavigationMenu` plus a trailing Logout button.
 
-| Item            | Icon                  | Target            |
-| --------------- | --------------------- | ----------------- |
-| Database        | circle-stack          | `/database`       |
-| Team Formation  | user-group            | `/team-formation` |
-| Automation      | bolt                  | `/automation`     |
-| User Management | shield-check          | `/users`          |
-| Logout          | arrow-right-on-rect.  | Calls `authClient.signOut()`, then navigates to `/auth` with a full reload |
+| Item            | Icon                 | Target                                                                     |
+| --------------- | -------------------- | -------------------------------------------------------------------------- |
+| Database        | circle-stack         | `/database`                                                                |
+| Team Formation  | user-group           | `/team-formation`                                                          |
+| Automation      | bolt                 | `/automation`                                                              |
+| User Management | shield-check         | `/users`                                                                   |
+| Logout          | arrow-right-on-rect. | Calls `authClient.signOut()`, then navigates to `/auth` with a full reload |
 
 User Management is only shown when `session.value.user.role === 'ADMIN'`; the route itself is also gated
 (§1.3) so a non-admin who navigates there directly gets a 403 rather than an empty page — see §5.
@@ -164,26 +164,26 @@ than snapping to whatever was picked before the decline. Backed by `useSemesters
 which fetches `/api/semesters` under the shared key `semesters` so every mounted instance shares one cache and one
 refresh.
 
-| Sub-element          | Component                | Visible when          | Action / result                                                                 |
-| -------------------- | ------------------------ | --------------------- | ------------------------------------------------------------------------------- |
-| Semester Selection   | `USelectMenu` (w-48)     | Always                | Sets the model; placeholder "All Semesters" when unset. Labels read `Fall 2025`. |
-| Semester Clear       | `UButton` ✗ (ghost)      | A semester is selected| Resets the model to `undefined`                                                  |
-| Delete Semester      | `UButton` − (error/soft) | A semester is selected| Opens the Confirmation Modal; on confirm `DELETE /api/semesters/:id`, refreshes the list, clears the selection. Failures surface as an error toast. |
-| Add Semester         | `UButton` + (soft)       | Always                | Opens the Create Semester Modal; on confirm `POST /api/semesters` then refresh   |
+| Sub-element        | Component                | Visible when           | Action / result                                                                                                                                     |
+| ------------------ | ------------------------ | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Semester Selection | `USelectMenu` (w-48)     | Always                 | Sets the model; placeholder "All Semesters" when unset. Labels read `Fall 2025`.                                                                    |
+| Semester Clear     | `UButton` ✗ (ghost)      | A semester is selected | Resets the model to `undefined`                                                                                                                     |
+| Delete Semester    | `UButton` − (error/soft) | A semester is selected | Opens the Confirmation Modal; on confirm `DELETE /api/semesters/:id`, refreshes the list, clears the selection. Failures surface as an error toast. |
+| Add Semester       | `UButton` + (soft)       | Always                 | Opens the Create Semester Modal; on confirm `POST /api/semesters` then refresh                                                                      |
 
-| State                        | Condition                                                     | Effect                                                                 |
-| ---------------------------- | ------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| Deletable                    | `teamCount + enrollmentCount + choiceCount === 0`              | Delete enabled; tooltip "Delete this semester"                          |
+| State                        | Condition                                                      | Effect                                                                    |
+| ---------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| Deletable                    | `teamCount + enrollmentCount + choiceCount === 0`              | Delete enabled; tooltip "Delete this semester"                            |
 | Locked                       | The semester has any teams, enrollments, or choices            | Delete **disabled**; tooltip explains those records must be removed first |
-| Dangling selection recovered | The selected semester disappears from the shared semester list | A watcher clears the model so the filter cannot point at a deleted row  |
+| Dangling selection recovered | The selected semester disappears from the shared semester list | A watcher clears the model so the filter cannot point at a deleted row    |
 
 **Create Semester Modal** (`components/CreateSemesterModal.vue`) — a `UModal` opened imperatively via
 `useOverlay()`; emits `close` with a `SemesterCreate` or `null`.
 
-| Field  | Input                                          | Validation (Zod)                                                     |
-| ------ | ---------------------------------------------- |----------------------------------------------------------------------|
-| Season | `URadioGroup` horizontal — Spring/Summer/Fall  | Enum; defaults to `FALL`                                             |
-| Year   | `UInputNumber`                                 | Integer; defaults to the current year; no commas should be displayed |
+| Field  | Input                                         | Validation (Zod)                                                     |
+| ------ | --------------------------------------------- | -------------------------------------------------------------------- |
+| Season | `URadioGroup` horizontal — Spring/Summer/Fall | Enum; defaults to `FALL`                                             |
+| Year   | `UInputNumber`                                | Integer; defaults to the current year; no commas should be displayed |
 
 Footer: Cancel (✗) closes with `null`; Confirm (✓) submits the form.
 
@@ -194,7 +194,7 @@ Footer: Cancel (✗) closes with `null`; Confirm (✓) submits the form.
 > rendering details for every cell/row/toolbar state, and worked examples.
 
 A generic `UTable` composition used only for the three **major records** — Partner, Project, Student. Everything
-else (Team, Contact, Choice, Enrollment, Membership) renders as a plain list or `UAccordion` 
+else (Team, Contact, Choice, Enrollment, Membership) renders as a plain list or `UAccordion`
 card inside the parent record's expanded row.
 
 The parent tab supplies data plus a lightweight column definition; the table owns all rendering. The full
@@ -212,11 +212,11 @@ scroll container with a sticky header.
 pending change is **staged locally** in one per-table store. The table issues **no API call until Confirm is
 pressed**; Cancel throws the entire store away and the table reverts to its fetched data.
 
-| Change kind | How it is staged                                                                 | Row appearance                                              |
-| ----------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| Addition    | Add appends a blank draft row; the user fills it in inline and in its expansion   | Light green row highlight                                    |
-| Edit        | Any cell or expansion field on an existing row is changed                        | Blue row highlight; each changed field gets a yellow outline |
-| Deletion    | Rows are selected, then Delete is pressed                                        | Red row highlight — the row **stays in view**                |
+| Change kind | How it is staged                                                                | Row appearance                                               |
+| ----------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| Addition    | Add appends a blank draft row; the user fills it in inline and in its expansion | Light green row highlight                                    |
+| Edit        | Any cell or expansion field on an existing row is changed                       | Blue row highlight; each changed field gets a yellow outline |
+| Deletion    | Rows are selected, then Delete is pressed                                       | Red row highlight — the row **stays in view**                |
 
 The four highlight colours are the standard Nuxt UI semantic tints, used consistently everywhere a staged change
 is shown — including inside expansions: green = being added, blue = being edited, red = marked for deletion,
@@ -286,12 +286,12 @@ Loading/Empty/Clean/Dirty/Invalid/Saving states.
 `useConfirm()` lazily creates one shared overlay instance and returns a function:
 `await useConfirm()({ title, description?, affected?, confirmLabel? }) → boolean`.
 
-| Element        | Source                          | Notes                                                                    |
-| -------------- | ------------------------------- | ------------------------------------------------------------------------ |
-| Title          | `title`                         | Usually "Delete N projects?"                                              |
-| Description    | `description`                   | The cascade sentence, e.g. "This will also delete all associated teams…"   |
-| Affected list  | `affected: {label, count}[]`    | Bulleted `3 Contacts`, `1 Project` — pluralized automatically; hidden when empty |
-| Cancel / Confirm | Footer buttons                | Resolve `false` / `true`; Confirm is red and its label is overridable      |
+| Element          | Source                       | Notes                                                                            |
+| ---------------- | ---------------------------- | -------------------------------------------------------------------------------- |
+| Title            | `title`                      | Usually "Delete N projects?"                                                     |
+| Description      | `description`                | The cascade sentence, e.g. "This will also delete all associated teams…"         |
+| Affected list    | `affected: {label, count}[]` | Bulleted `3 Contacts`, `1 Project` — pluralized automatically; hidden when empty |
+| Cancel / Confirm | Footer buttons               | Resolve `false` / `true`; Confirm is red and its label is overridable            |
 
 The modal has no domain knowledge — each caller computes its own cascade counts before opening it.
 
@@ -300,37 +300,37 @@ The modal has no domain knowledge — each caller computes its own cascade count
 A generic async-search `USelectMenu` (`ignoreFilter` + `v-model:search-term`) for picking a linked major record.
 Props: `search(query) → Promise<T[]>`, `displayLabel(item)`, `placeholder`. The model is the selected record.
 
-| State           | Condition                                     | Appearance                                                    |
-| --------------- | --------------------------------------------- | ------------------------------------------------------------- |
-| Idle            | Menu opened, nothing typed yet                | Empty list — the search only runs on a search-term change      |
-| Loading         | A search promise is in flight                 | `USelectMenu` spinner                                          |
-| Results         | Search resolved                               | Up to the caller's cap (callers slice to 10)                   |
-| Selected        | Model set                                     | Shows `displayLabel(model)`                                    |
+| State    | Condition                      | Appearance                                                |
+| -------- | ------------------------------ | --------------------------------------------------------- |
+| Idle     | Menu opened, nothing typed yet | Empty list — the search only runs on a search-term change |
+| Loading  | A search promise is in flight  | `USelectMenu` spinner                                     |
+| Results  | Search resolved                | Up to the caller's cap (callers slice to 10)              |
+| Selected | Model set                      | Shows `displayLabel(model)`                               |
 
 Out-of-order responses are discarded via a monotonic token, so a slow early query cannot overwrite a newer result.
 
 ### 2.6 Utilities
 
-| Module                 | Purpose                                                                                              |
-| ---------------------- | ---------------------------------------------------------------------------------------------------- |
-| `utils/icons.ts`       | `ACTION_ICONS` — the single source for the +/−/✓/✗ action icons used across every toolbar and modal    |
-| `utils/csvExport.ts`   | `rowsToCsv` / `downloadCsv` — quotes cells containing `"`, `,`, or newlines and triggers a blob download |
-| `utils/bidCsv.ts`      | `parseCsv` (quote-aware) and `validateBidRows` for the Team Formation bid upload (§4.3)                 |
+| Module               | Purpose                                                                                                  |
+| -------------------- | -------------------------------------------------------------------------------------------------------- |
+| `utils/icons.ts`     | `ACTION_ICONS` — the single source for the +/−/✓/✗ action icons used across every toolbar and modal      |
+| `utils/csvExport.ts` | `rowsToCsv` / `downloadCsv` — quotes cells containing `"`, `,`, or newlines and triggers a blob download |
+| `utils/bidCsv.ts`    | `parseCsv` (quote-aware) and `validateBidRows` for the Team Formation bid upload (§4.3)                  |
 
 ### 2.7 Icon Reference
 
-| Action        | Icon          | Heroicon                |
-| ------------- | ------------- | ----------------------- |
-| Add           | Plus (+)      | `i-heroicons-plus`      |
-| Delete        | Minus (−)     | `i-heroicons-minus`     |
-| Confirm       | Checkmark (✓) | `i-heroicons-check`     |
-| Cancel/Clear  | X (✗)         | `i-heroicons-x-mark`    |
-| Sort unset/asc/desc | ↕ / ↑ / ↓ | `arrows-up-down`, `arrow-up`, `arrow-down` |
-| Expand/collapse row | ▸ / ▾     | `chevron-right`, `chevron-down` |
-| Undo a staged change | Uturn arrow | `i-heroicons-arrow-uturn-left` |
-| Make primary        | Star      | `i-heroicons-star`      |
-| Export / Upload     | ↓ tray / ↑ tray | `arrow-down-tray`, `arrow-up-tray` |
-| Generate            | Sparkles  | `i-heroicons-sparkles`  |
+| Action               | Icon            | Heroicon                                   |
+| -------------------- | --------------- | ------------------------------------------ |
+| Add                  | Plus (+)        | `i-heroicons-plus`                         |
+| Delete               | Minus (−)       | `i-heroicons-minus`                        |
+| Confirm              | Checkmark (✓)   | `i-heroicons-check`                        |
+| Cancel/Clear         | X (✗)           | `i-heroicons-x-mark`                       |
+| Sort unset/asc/desc  | ↕ / ↑ / ↓       | `arrows-up-down`, `arrow-up`, `arrow-down` |
+| Expand/collapse row  | ▸ / ▾           | `chevron-right`, `chevron-down`            |
+| Undo a staged change | Uturn arrow     | `i-heroicons-arrow-uturn-left`             |
+| Make primary         | Star            | `i-heroicons-star`                         |
+| Export / Upload      | ↓ tray / ↑ tray | `arrow-down-tray`, `arrow-up-tray`         |
+| Generate             | Sparkles        | `i-heroicons-sparkles`                     |
 
 ---
 
@@ -340,11 +340,11 @@ A `UContainer` with a header row — "Database" plus one `SemesterFilter` — ov
 owns both the semester id and the active tab, through `provideSemesterFilter()` (§2.3.2, §3.4); a tab no longer
 holds either itself.
 
-| Tab      | Component          | Semester filter narrows the list to…                                  |
-| -------- | ------------------ | ---------------------------------------------------------------------- |
-| Projects | `ProjectsTab.vue`  | Projects with at least one team in that semester                        |
-| Students | `StudentsTab.vue`  | Students enrolled that semester **or** mentoring a team that semester   |
-| Partners | `PartnersTab.vue`  | Partners owning a project with a team that semester                     |
+| Tab      | Component         | Semester filter narrows the list to…                                  |
+| -------- | ----------------- | --------------------------------------------------------------------- |
+| Projects | `ProjectsTab.vue` | Projects with at least one team in that semester                      |
+| Students | `StudentsTab.vue` | Students enrolled that semester **or** mentoring a team that semester |
+| Partners | `PartnersTab.vue` | Partners owning a project with a team that semester                   |
 
 Each tab fetches its own list with a reactive `semesterId` query param — read from `useSemesterFilter()` — and
 re-fetches whenever the id moves. No semester selected means no filtering. Because the id only moves after the page
@@ -354,14 +354,14 @@ has asked and the user has confirmed (§2.3.2), a tab never refetches out from u
 
 #### 3.1.1 Table
 
-| Column       | Field                          | Sort | Filter                                        | Edit                           | Present when            |
-| ------------ | ------------------------------- | ---- | ---------------------------------------------- | ------------------------------- | ------------------------ |
-| Name         | `name`                          | ✓    | search                                        | text                           | Always                   |
-| Type         | `type`                          | -    | multiselect: Software / Hardware / Both       | select (same options)          | Always                   |
-| Status       | `status`                        | -    | multiselect: New / Returning / Complete / Withdrawn / Hold | select (same options) | Always            |
-| GitHub Link  | `repoURL`                       | -    | search                                        | text                           | Always                   |
-| Partner      | `partner.name`                  | ✓    | search                                        | record-search (§2.3.5)         | Always                   |
-| Meeting Day  | derived — that semester's team  | ✓    | —                                              | select — Wednesday / Thursday  | A semester is selected   |
+| Column      | Field                          | Sort | Filter                                                     | Edit                          | Present when           |
+| ----------- | ------------------------------ | ---- | ---------------------------------------------------------- | ----------------------------- | ---------------------- |
+| Name        | `name`                         | ✓    | search                                                     | text                          | Always                 |
+| Type        | `type`                         | -    | multiselect: Software / Hardware / Both                    | select (same options)         | Always                 |
+| Status      | `status`                       | -    | multiselect: New / Returning / Complete / Withdrawn / Hold | select (same options)         | Always                 |
+| GitHub Link | `repoURL`                      | -    | search                                                     | text                          | Always                 |
+| Partner     | `partner.name`                 | ✓    | search                                                     | record-search (§2.3.5)        | Always                 |
+| Meeting Day | derived — that semester's team | ✓    | —                                                          | select — Wednesday / Thursday | A semester is selected |
 
 Description moved off the table and into the expanded row (§3.1.3), alongside the team detail.
 
@@ -369,60 +369,60 @@ Meeting Day reflects the project's team for the selected semester. When the proj
 cell reads `—` and is not editable — a team must first be added from the expanded row (§3.1.3/§3.1.4). When a team
 exists, editing this cell stages an update to that team's `meetingDay`.
 
-| Action  | Result                                                                                                                                     |
-| ------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| Add     | Appends a green draft row, pre-expanded. Name/Type/Status/GitHub Link/Partner are typed inline; Description and any initial Teams are set in the expansion. Nothing is sent. |
-| Edit    | Editing any cell or expansion field turns the row blue and outlines the changed field yellow. Nothing is sent.                                |
-| Delete  | Marks the selected rows red. Nothing is sent.                                                                                                |
+| Action  | Result                                                                                                                                                                                                                                                                                                                                        |
+| ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Add     | Appends a green draft row, pre-expanded. Name/Type/Status/GitHub Link/Partner are typed inline; Description and any initial Teams are set in the expansion. Nothing is sent.                                                                                                                                                                  |
+| Edit    | Editing any cell or expansion field turns the row blue and outlines the changed field yellow. Nothing is sent.                                                                                                                                                                                                                                |
+| Delete  | Marks the selected rows red. Nothing is sent.                                                                                                                                                                                                                                                                                                 |
 | Confirm | If any deletions are staged, first opens the Confirmation Modal listing the total affected **Teams**. Then, in order: `POST /api/projects` per created row (partner id and nested teams in the payload) → `PUT /api/projects/:id` per edited row (with nested team/membership changes) → `DELETE /api/projects/:id` per deleted row → refresh |
-| Cancel  | Discards every staged project, edit, and deletion, including expansion changes                                                                |
+| Cancel  | Discards every staged project, edit, and deletion, including expansion changes                                                                                                                                                                                                                                                                |
 
 #### 3.1.2 New Project Row
 
 A staged row is filled in through the same controls used for editing an existing project.
 
-| Field       | Where          | Input                                   | Notes                                                       |
-| ----------- | -------------- | ---------------------------------------- | -------------------------------------------------------------- |
-| Name        | Inline cell    | `UInput`                                | Required — Confirm blocked while blank                        |
-| Type        | Inline cell    | `USelectMenu`                           | Defaults to Software                                           |
-| Status      | Inline cell    | `USelectMenu`                           | Defaults to New                                                |
-| GitHub Link | Inline cell    | `UInput`                                |                                                                 |
-| Partner     | Inline cell    | `RecordSearchInput` over all partners   | Required; fetched under key `partners-all`                     |
-| Description | Expansion      | `UTextarea`, edited directly in place    |                                                                 |
-| Teams       | Expansion      | Team Creation Modal (§3.1.4)             | Optional; each staged team is listed green                     |
+| Field       | Where       | Input                                 | Notes                                      |
+| ----------- | ----------- | ------------------------------------- | ------------------------------------------ |
+| Name        | Inline cell | `UInput`                              | Required — Confirm blocked while blank     |
+| Type        | Inline cell | `USelectMenu`                         | Defaults to Software                       |
+| Status      | Inline cell | `USelectMenu`                         | Defaults to New                            |
+| GitHub Link | Inline cell | `UInput`                              |                                            |
+| Partner     | Inline cell | `RecordSearchInput` over all partners | Required; fetched under key `partners-all` |
+| Description | Expansion   | `UTextarea`, edited directly in place |                                            |
+| Teams       | Expansion   | Team Creation Modal (§3.1.4)          | Optional; each staged team is listed green |
 
 #### 3.1.3 Expanded Row — Description and Teams
 
 The expanded row is a Description field (`UTextarea`, edited directly in place — there is no separate edit mode)
 over a **Teams** heading with an "Add Team" button, over the project's team cards.
 
-| Semester filter | Teams shown                                                | Card behavior                                                              |
-| ---------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------ |
-| Unset            | Every team, sorted most-recent-semester first                | Multi-open `UAccordion`, collapsible; label reads `Fall 2025 — Wednesday`      |
-| Set               | Only that semester's team, if one exists                     | A single, **non-collapsible** card — no accordion chrome                       |
+| Semester filter | Teams shown                                   | Card behavior                                                             |
+| --------------- | --------------------------------------------- | ------------------------------------------------------------------------- |
+| Unset           | Every team, sorted most-recent-semester first | Multi-open `UAccordion`, collapsible; label reads `Fall 2025 — Wednesday` |
+| Set             | Only that semester's team, if one exists      | A single, **non-collapsible** card — no accordion chrome                  |
 
 Every action here stages a change on the parent project row — no request is made until the table's Confirm.
 
-| Element               | Action                                                                                                    | Staged appearance                       |
-| ----------------------- | -------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
-| Add Team               | Opens the Team Creation Modal and appends the result                                                     | New team card tinted green                |
-| Delete Team            | Marks that team for deletion; the card stays in place and its members are locked                          | Team card tinted red                      |
-| Mentors list           | One bordered row per membership with `isMentor = true`; "Add Mentor" + button                             | —                                          |
-| Students list          | One bordered row per membership with `isMentor = false`; "Add Student" + button                           | —                                          |
-| Add Mentor / Student   | Opens the Member Creation Modal and appends the picked student to that list                                | Member row tinted green                   |
+| Element                | Action                                                                                                                                                | Staged appearance                                                                  |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Add Team               | Opens the Team Creation Modal and appends the result                                                                                                  | New team card tinted green                                                         |
+| Delete Team            | Marks that team for deletion; the card stays in place and its members are locked                                                                      | Team card tinted red                                                               |
+| Mentors list           | One bordered row per membership with `isMentor = true`; "Add Mentor" + button                                                                         | —                                                                                  |
+| Students list          | One bordered row per membership with `isMentor = false`; "Add Student" + button                                                                       | —                                                                                  |
+| Add Mentor / Student   | Opens the Member Creation Modal and appends the picked student to that list                                                                           | Member row tinted green                                                            |
 | Move (per member)      | Opens the Move Student Modal; on confirm, stages that membership as deleted from this team and stages a new membership on the chosen destination team | Member row tinted red here; a new green row appears on the destination team's card |
-| Remove (per member)    | Marks that membership for deletion; the row stays in view                                                  | Member row tinted red                     |
-| Undo (on a staged row) | Available on any green, blue, or red item — drops a staged addition, reverts an edit, or unmarks a deletion | Returns to normal                          |
+| Remove (per member)    | Marks that membership for deletion; the row stays in view                                                                                             | Member row tinted red                                                              |
+| Undo (on a staged row) | Available on any green, blue, or red item — drops a staged addition, reverts an edit, or unmarks a deletion                                           | Returns to normal                                                                  |
 
 Any staged team or membership change — including a Move, which touches two team cards at once — turns the parent
 project row blue. Nothing is written until the table's Confirm.
 
 #### 3.1.4 Team Creation Modal
 
-| Field       | Input                                                  |
-| ----------- | -------------------------------------------------------- |
-| Semester    | `USelectMenu` over all semesters                        |
-| Meeting Day | `URadioGroup` horizontal — Wednesday / Thursday           |
+| Field       | Input                                           |
+| ----------- | ----------------------------------------------- |
+| Semester    | `USelectMenu` over all semesters                |
+| Meeting Day | `URadioGroup` horizontal — Wednesday / Thursday |
 
 Zod-validated. Confirm **stages** `{ semesterId, meetingDay }` on the project (as a nested create) and closes;
 it issues no request. Cancel discards the modal's input only.
@@ -442,9 +442,9 @@ including any staged-new teams. Confirm is disabled until a destination is picke
 
 Confirm stages both halves of the move at once and issues no request:
 
-| Staged change                | Where it appears                                                                        |
-| ------------------------------ | ---------------------------------------------------------------------------------------- |
-| Membership marked for deletion | The member's row on the **source** team's card, tinted red                                |
+| Staged change                  | Where it appears                                                                               |
+| ------------------------------ | ---------------------------------------------------------------------------------------------- |
+| Membership marked for deletion | The member's row on the **source** team's card, tinted red                                     |
 | New membership staged          | A new row on the **destination** team's card, tinted green, carrying the same `isMentor` value |
 
 Cancelling the Move Student Modal discards the move only; the member's row on the source card is unaffected.
@@ -453,19 +453,19 @@ Cancelling the Move Student Modal discards the move only; the member's row on th
 
 #### 3.2.1 Table
 
-| Column       | Field                    | Sort | Filter                                 | Edit                            | Present when              |
-| ------------ | -------------------------- | ---- | ----------------------------------------- | ---------------------------------- | --------------------------- |
-| NetID        | `netID`                    | ✓    | search                                    | text                               | Always                       |
-| First Name   | `firstName`                | ✓    | search                                    | text                               | Always                       |
-| Last Name    | `lastName`                 | ✓    | search                                    | text                               | Always                       |
-| Email        | `email`                    | ✓    | search                                    | text                               | Always                       |
-| Discord      | `discord`                  | ✓    | search                                    | text                               | Always                       |
-| Is Mentor?   | `isMentor`                 | ✓    | multiselect: Mentor / Student              | switch                             | Always                       |
-| Meeting Day  | `enrollment.meetingDay`    | ✓    | —                                        | select — Wednesday / Thursday      | A semester is selected       |
-| Gender       | `enrollment.gender`        | ✓    | —                                        | select — Male / Female / Other     | A semester is selected       |
-| Major        | `enrollment.major`         | ✓    | —                                        | text                               | A semester is selected       |
-| Year         | `enrollment.year`          | ✓    | —                                        | select — Freshman…Senior          | A semester is selected       |
-| Class        | `enrollment.class`         | ✓    | —                                        | select — EPCS_2200 / EPCS_3200     | A semester is selected       |
+| Column      | Field                   | Sort | Filter                        | Edit                           | Present when           |
+| ----------- | ----------------------- | ---- | ----------------------------- | ------------------------------ | ---------------------- |
+| NetID       | `netID`                 | ✓    | search                        | text                           | Always                 |
+| First Name  | `firstName`             | ✓    | search                        | text                           | Always                 |
+| Last Name   | `lastName`              | ✓    | search                        | text                           | Always                 |
+| Email       | `email`                 | ✓    | search                        | text                           | Always                 |
+| Discord     | `discord`               | ✓    | search                        | text                           | Always                 |
+| Is Mentor?  | `isMentor`              | ✓    | multiselect: Mentor / Student | switch                         | Always                 |
+| Meeting Day | `enrollment.meetingDay` | ✓    | —                             | select — Wednesday / Thursday  | A semester is selected |
+| Gender      | `enrollment.gender`     | ✓    | —                             | select — Male / Female / Other | A semester is selected |
+| Major       | `enrollment.major`      | ✓    | —                             | text                           | A semester is selected |
+| Year        | `enrollment.year`       | ✓    | —                             | select — Freshman…Senior       | A semester is selected |
+| Class       | `enrollment.class`      | ✓    | —                             | select — EPCS_2200 / EPCS_3200 | A semester is selected |
 
 All five semester-specific columns read from the student's **Enrollment** record for the selected semester — not
 from any Membership. A student who only mentors that semester (no enrollment) shows `—` in all five and they are
@@ -473,25 +473,25 @@ not editable there; an enrollment must exist first, created via Add Semester Inf
 Editing one of these cells stages the same change as editing the matching field on that semester's card in the
 expansion (§3.2.3) — the two surfaces share one staged edit.
 
-| Action  | Result                                                                                                                                                |
-| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Add     | Appends a green draft row, pre-expanded; semester info is added in its expansion. Nothing is sent.                                                      |
-| Edit    | Row turns blue, changed field outlined yellow. Nothing is sent.                                                                                        |
-| Delete  | Marks the selected rows red. Nothing is sent.                                                                                                          |
+| Action  | Result                                                                                                                                                                                                                                                                                                                  |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Add     | Appends a green draft row, pre-expanded; semester info is added in its expansion. Nothing is sent.                                                                                                                                                                                                                      |
+| Edit    | Row turns blue, changed field outlined yellow. Nothing is sent.                                                                                                                                                                                                                                                         |
+| Delete  | Marks the selected rows red. Nothing is sent.                                                                                                                                                                                                                                                                           |
 | Confirm | If deletions are staged, first opens the Confirmation Modal listing affected **Enrollments**, **Choices**, and **Memberships**. Then `POST /api/students` per created row (with nested enrollments/memberships/choices) → `PUT /api/students/:id` per edited row → `DELETE /api/students/:id` per deleted row → refresh |
-| Cancel  | Discards every staged student, edit, and deletion                                                                                                      |
+| Cancel  | Discards every staged student, edit, and deletion                                                                                                                                                                                                                                                                       |
 
 #### 3.2.2 New Student Row
 
-| Field      | Where       | Input         | Notes                                       |
-| ---------- | ----------- | ------------- | ------------------------------------------- |
-| NetID      | Inline cell | `UInput`      | Required — Confirm blocked while blank      |
-| First Name | Inline cell | `UInput`      | Required                                    |
-| Last Name  | Inline cell | `UInput`      | Required                                    |
-| Email      | Inline cell | `UInput`      | Sent as `undefined` when blank              |
-| Discord    | Inline cell | `UInput`      | Sent as `undefined` when blank              |
-| Is Mentor? | Inline cell | `USwitch`     | Defaults off; drives the Role field in §3.2.5 |
-| Semester Info | Expansion | Semester Info Creation Modal (§3.2.5) | Optional; each staged entry is listed green |
+| Field         | Where       | Input                                 | Notes                                         |
+| ------------- | ----------- | ------------------------------------- | --------------------------------------------- |
+| NetID         | Inline cell | `UInput`                              | Required — Confirm blocked while blank        |
+| First Name    | Inline cell | `UInput`                              | Required                                      |
+| Last Name     | Inline cell | `UInput`                              | Required                                      |
+| Email         | Inline cell | `UInput`                              | Sent as `undefined` when blank                |
+| Discord       | Inline cell | `UInput`                              | Sent as `undefined` when blank                |
+| Is Mentor?    | Inline cell | `USwitch`                             | Defaults off; drives the Role field in §3.2.5 |
+| Semester Info | Expansion   | Semester Info Creation Modal (§3.2.5) | Optional; each staged entry is listed green   |
 
 #### 3.2.3 Expanded Row — Semester Info
 
@@ -505,16 +505,16 @@ read `Fall 2025 — Student` / `Fall 2025 — Mentor`.
 Every action in a card stages a change on the parent student row; nothing is sent until the table's Confirm. No
 field in a card is gated behind an Edit button — every editable field is directly editable in place.
 
-| Card body element      | Present on   | Behavior                                                                                          | Staged appearance                    |
-| ----------------------- | ------------ | ----------------------------------------------------------------------------------------------------- | --------------------------------------- |
-| Add Semester Info (+)   | Header       | Opens the Semester Info Creation Modal; the result is appended as a new card                          | Card tinted green                       |
-| Delete Semester Info    | Both roles   | Marks the underlying enrollment or mentor membership for deletion; the card stays                     | Card tinted red, contents locked        |
-| Enrollment fields       | Student only | Meeting Day / Gender / Major / Year / Class, each editable in place                                    | Changed field outlined yellow — the same staged edit as the matching column in §3.2.1 |
-| Team                    | Both roles   | `RecordSearchInput` over teams with a team that card's semester (searches by project or partner name), editable directly — no separate edit control. Picking a team when previously unassigned stages a new Membership; picking a different team stages an update to the existing one; clearing it stages that Membership's deletion. | Field outlined yellow when changed; an unassigned-to-assigned change is still just an edit on this card, not a separate staged row |
-| Team Preferences        | Student only | Ranked list `#1 Project Name`, ordered by rank                                                         | —                                        |
-| Add Preference (+)      | Student only | Opens the Team Preference Modal; appends the pick to the list                                          | Preference row tinted green              |
-| Move Up / Move Down     | Student only | Reorders the list locally and stages the resulting ranks                                               | Reordered rows outlined yellow           |
-| Remove (−)              | Student only | Marks that choice for deletion; the row stays in view                                                  | Preference row tinted red                |
+| Card body element     | Present on   | Behavior                                                                                                                                                                                                                                                                                                                              | Staged appearance                                                                                                                  |
+| --------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Add Semester Info (+) | Header       | Opens the Semester Info Creation Modal; the result is appended as a new card                                                                                                                                                                                                                                                          | Card tinted green                                                                                                                  |
+| Delete Semester Info  | Both roles   | Marks the underlying enrollment or mentor membership for deletion; the card stays                                                                                                                                                                                                                                                     | Card tinted red, contents locked                                                                                                   |
+| Enrollment fields     | Student only | Meeting Day / Gender / Major / Year / Class, each editable in place                                                                                                                                                                                                                                                                   | Changed field outlined yellow — the same staged edit as the matching column in §3.2.1                                              |
+| Team                  | Both roles   | `RecordSearchInput` over teams with a team that card's semester (searches by project or partner name), editable directly — no separate edit control. Picking a team when previously unassigned stages a new Membership; picking a different team stages an update to the existing one; clearing it stages that Membership's deletion. | Field outlined yellow when changed; an unassigned-to-assigned change is still just an edit on this card, not a separate staged row |
+| Team Preferences      | Student only | Ranked list `#1 Project Name`, ordered by rank                                                                                                                                                                                                                                                                                        | —                                                                                                                                  |
+| Add Preference (+)    | Student only | Opens the Team Preference Modal; appends the pick to the list                                                                                                                                                                                                                                                                         | Preference row tinted green                                                                                                        |
+| Move Up / Move Down   | Student only | Reorders the list locally and stages the resulting ranks                                                                                                                                                                                                                                                                              | Reordered rows outlined yellow                                                                                                     |
+| Remove (−)            | Student only | Marks that choice for deletion; the row stays in view                                                                                                                                                                                                                                                                                 | Preference row tinted red                                                                                                          |
 
 #### 3.2.4 Team Preference Modal
 
@@ -525,15 +525,15 @@ picked, and **stages** the choice rather than sending it.
 
 #### 3.2.5 Semester Info Creation Modal
 
-| Field       | Input                                     | Shown when                                |
-| ----------- | -------------------------------------------- | -------------------------------------------- |
-| Semester    | `USelectMenu`                                | Always                                        |
-| Meeting Day | `USelectMenu` — Wednesday / Thursday          | Always                                        |
-| Role        | `URadioGroup` — Student / Mentor              | Only if the student's mentor flag is set       |
-| Major       | `UInput`                                     | Role = Student                                |
-| Year        | `USelectMenu` — Freshman…Senior               | Role = Student                                |
-| Class       | `USelectMenu` — EPCS_2200 / EPCS_3200         | Role = Student                                |
-| Gender      | `USelectMenu` — Male / Female / Other         | Role = Student                                |
+| Field       | Input                                                       | Shown when                                                                                                   |
+| ----------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Semester    | `USelectMenu`                                               | Always                                                                                                       |
+| Meeting Day | `USelectMenu` — Wednesday / Thursday                        | Always                                                                                                       |
+| Role        | `URadioGroup` — Student / Mentor                            | Only if the student's mentor flag is set                                                                     |
+| Major       | `UInput`                                                    | Role = Student                                                                                               |
+| Year        | `USelectMenu` — Freshman…Senior                             | Role = Student                                                                                               |
+| Class       | `USelectMenu` — EPCS_2200 / EPCS_3200                       | Role = Student                                                                                               |
+| Gender      | `USelectMenu` — Male / Female / Other                       | Role = Student                                                                                               |
 | Team        | `RecordSearchInput` over projects with a team that semester | Optional for either role — leave blank to create the card unassigned and set it later from the card (§3.2.3) |
 
 Confirm **stages** the entry as a new card and issues no request. What the table's Confirm later sends depends on
@@ -541,10 +541,11 @@ the role:
 
 | Role staged | Request issued on Confirm                                                                                                                  |
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| Student     | `POST /api/enrollments` with student, semester, meeting day, major, year, class, gender; plus `POST /api/memberships` if a team was picked  |
-| Mentor      | `POST /api/memberships` with `isMentor: true`, resolved to the picked project's team for that semester; nothing is sent if left unassigned  |
+| Student     | `POST /api/enrollments` with student, semester, meeting day, major, year, class, gender; plus `POST /api/memberships` if a team was picked |
+| Mentor      | `POST /api/memberships` with `isMentor: true`, resolved to the picked project's team for that semester; nothing is sent if left unassigned |
 
 For a **new** student row, these are sent as nested creates inside the row's `POST /api/students`.
+
 ### 3.3 Partners Tab
 
 #### 3.3.1 Table
@@ -552,20 +553,20 @@ For a **new** student row, these are sent as nested creates inside the row's `PO
 Rows are partners flattened with their **primary contact** (the contact flagged primary, else the first one), so
 the contact columns are editable proxies onto a different record.
 
-| Column  | Field (row)     | Sort | Filter | Edit |
-| ------- | --------------- | ---- | ------ | ---- |
-| Name    | `name`          | ✓    | search | text |
-| Contact | `primaryName`   | ✓    | search | text |
-| Email   | `primaryEmail`  | ✓    | search | text |
-| Phone   | `primaryPhone`  | ✓    | search | text |
+| Column  | Field (row)    | Sort | Filter | Edit |
+| ------- | -------------- | ---- | ------ | ---- |
+| Name    | `name`         | ✓    | search | text |
+| Contact | `primaryName`  | ✓    | search | text |
+| Email   | `primaryEmail` | ✓    | search | text |
+| Phone   | `primaryPhone` | ✓    | search | text |
 
-| Action  | Result                                                                                                                                                          |
-| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Add     | Appends a green draft row (Name inline, contacts in the expansion). Nothing is sent.                                                                              |
-| Edit    | Row turns blue, changed field outlined yellow — including the three contact-proxy columns. Nothing is sent.                                                       |
-| Delete  | Marks the selected rows red. Nothing is sent.                                                                                                                    |
+| Action  | Result                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Add     | Appends a green draft row (Name inline, contacts in the expansion). Nothing is sent.                                                                                                                                                                                                                                                                                                                                          |
+| Edit    | Row turns blue, changed field outlined yellow — including the three contact-proxy columns. Nothing is sent.                                                                                                                                                                                                                                                                                                                   |
+| Delete  | Marks the selected rows red. Nothing is sent.                                                                                                                                                                                                                                                                                                                                                                                 |
 | Confirm | If deletions are staged, first opens the Confirmation Modal listing affected **Contacts** and **Projects**. Then each row's changes are split: partner fields → `POST`/`PUT /api/partners/:id`; contact fields → `PUT /api/contacts/:id` for the primary contact, or `POST /api/contacts` when the partner has none (nested into the partner create for a new row); then `DELETE /api/partners/:id` per deleted row → refresh |
-| Cancel  | Discards every staged partner, edit, and deletion, including contact changes                                                                                     |
+| Cancel  | Discards every staged partner, edit, and deletion, including contact changes                                                                                                                                                                                                                                                                                                                                                  |
 
 Editing a contact-proxy column and editing that same contact's card in the expansion are the same staged change —
 whichever is touched last wins, and both surfaces show the yellow outline.
@@ -575,30 +576,30 @@ whichever is touched last wins, and both surfaces show the yellow outline.
 **Contacts** — a heading with "Add Contact" over a list of bordered cards. Fields are edited in place; every
 action stages a change on the parent partner row and issues no request.
 
-| Card state        | Contents                                                                                                             |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| Display           | Name, Email, Phone as ghost inputs (`—` placeholder when blank), a "Primary" `UBadge` when applicable, plus the action buttons |
-| Edited            | Same, with each changed field outlined yellow                                                                          |
-| Staged addition   | Whole card tinted green                                                                                                |
-| Marked for deletion | Whole card tinted red, inputs disabled                                                                               |
+| Card state          | Contents                                                                                                                       |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Display             | Name, Email, Phone as ghost inputs (`—` placeholder when blank), a "Primary" `UBadge` when applicable, plus the action buttons |
+| Edited              | Same, with each changed field outlined yellow                                                                                  |
+| Staged addition     | Whole card tinted green                                                                                                        |
+| Marked for deletion | Whole card tinted red, inputs disabled                                                                                         |
 
-| Button       | Visible when                    | Result                                                                    |
-| ------------ | ------------------------------- | --------------------------------------------------------------------------- |
-| Add Contact  | Header                          | Opens the Contact Creation Modal; the result is appended as a green card     |
-| Make Primary | Contact is not primary          | Stages `isPrimary: true` on that contact (and clears it on the previous primary) |
-| Delete       | Card is clean or edited         | Marks the contact for deletion; the card stays in view                      |
-| Undo         | Card is staged green, blue, or red | Drops a staged addition, reverts an edit, or unmarks a deletion          |
+| Button       | Visible when                       | Result                                                                           |
+| ------------ | ---------------------------------- | -------------------------------------------------------------------------------- |
+| Add Contact  | Header                             | Opens the Contact Creation Modal; the result is appended as a green card         |
+| Make Primary | Contact is not primary             | Stages `isPrimary: true` on that contact (and clears it on the previous primary) |
+| Delete       | Card is clean or edited            | Marks the contact for deletion; the card stays in view                           |
+| Undo         | Card is staged green, blue, or red | Drops a staged addition, reverts an edit, or unmarks a deletion                  |
 
 **Projects** — a plain read-only list of the partner's project names, narrowed to projects with a team in the
 selected semester when a filter is set. Projects are created from the Projects tab, not here.
 
 #### 3.3.3 Contact Creation Modal
 
-| Field | Input    | Notes                                    |
-| ----- | -------- | ---------------------------------------- |
-| Name  | `UInput` | Required                                 |
-| Phone | `UInput` | Sent as `undefined` when blank            |
-| Email | `UInput` |                                          |
+| Field | Input    | Notes                          |
+| ----- | -------- | ------------------------------ |
+| Name  | `UInput` | Required                       |
+| Phone | `UInput` | Sent as `undefined` when blank |
+| Email | `UInput` |                                |
 
 Confirm **stages** the contact under the parent partner and closes; the `POST /api/contacts` (or the nested create
 on a new partner) happens on the table's Confirm.
@@ -613,15 +614,15 @@ Staged changes survive neither a tab switch nor a semester change without an exp
 through `useSemesterFilter()` (§2.3.2, §3), so the user is asked before either happens, and a decline leaves the
 staged work and the current tab/semester untouched. What remains:
 
-| Limit                       | Behavior today                                                                                                  |
-| --------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| Item Panel                  | Not planned. Record detail lives in expandable rows, and clicking a record name does nothing.                     |
-| Proxy columns on a new row  | `editable.child` resolves against the fetched record, so a column cannot proxy a **staged-new** child. On a brand-new project row Meeting Day stays read-only; set the day in the Team Creation Modal instead. |
-| Accordion tinting           | `UAccordion` exposes no per-item hook for its trigger, so in the semester-unset view a staged-green or -red team tints its body but not its header. |
-| Staged primary contact      | The Partners contact-proxy columns target the **fetched** primary, so after a staged Make Primary those columns keep editing the previous primary until Confirm. |
-| Team change is delete+create| There is no `PUT /api/memberships/:id`, so re-pointing a student at another team stages a delete plus a create. The Students tab re-collapses that pair into one card; the Projects tab's Move does the same across two cards. |
-| Primary not promoted        | `contactService.deleteContact` does not promote a replacement primary, so deleting a partner's primary contact leaves the partner with none (the table then falls back to the first contact for display). |
-| Clearing a record search    | `RecordSearchInput` has no `clearable`, so a card that needs an unset action renders its own ✗ button beside it.  |
+| Limit                        | Behavior today                                                                                                                                                                                                                 |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Item Panel                   | Not planned. Record detail lives in expandable rows, and clicking a record name does nothing.                                                                                                                                  |
+| Proxy columns on a new row   | `editable.child` resolves against the fetched record, so a column cannot proxy a **staged-new** child. On a brand-new project row Meeting Day stays read-only; set the day in the Team Creation Modal instead.                 |
+| Accordion tinting            | `UAccordion` exposes no per-item hook for its trigger, so in the semester-unset view a staged-green or -red team tints its body but not its header.                                                                            |
+| Staged primary contact       | The Partners contact-proxy columns target the **fetched** primary, so after a staged Make Primary those columns keep editing the previous primary until Confirm.                                                               |
+| Team change is delete+create | There is no `PUT /api/memberships/:id`, so re-pointing a student at another team stages a delete plus a create. The Students tab re-collapses that pair into one card; the Projects tab's Move does the same across two cards. |
+| Primary not promoted         | `contactService.deleteContact` does not promote a replacement primary, so deleting a partner's primary contact leaves the partner with none (the table then falls back to the first contact for display).                      |
+| Clearing a record search     | `RecordSearchInput` has no `clearable`, so a card that needs an unset action renders its own ✗ button beside it.                                                                                                               |
 
 Choice reordering deliberately stages a new rank on **only** the moved choice: `choiceService.updateChoice`
 already shifts siblings, so rewriting every rank would fight it.
@@ -634,22 +635,22 @@ of how `useStagedChanges`'s `children`/`fields` resolve targets, not independent
 
 Code that used to be duplicated across the three tabs now lives in one place:
 
-| Module                                    | Purpose                                                                                             |
-| ------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
-| `composables/useSemesterFilter.ts`         | `provideSemesterFilter()` / `useSemesterFilter()` — the gated semester id and active tab (§2.3.2, §3)  |
-| `composables/useStagedSave.ts`             | `useStagedSave()` — the Confirm envelope shared by all three tabs: delete confirmation, `saving`, create→update→delete ordering, `staging.reset()`, refresh, one error toast |
-| `composables/useRecordModals.ts`           | `useRecordModals()` — awaited `useOverlay()` openers for the six minor-record modals, normalizing an ESC/outside-click dismissal to `null` |
-| `composables/useRowStaging.ts`             | `provideRowStaging()` / `useRowStaging()` — ambient `{staging, saving}` for components rendered inside a row's expansion |
-| `composables/useSemesterCards.ts`          | The Students tab's per-semester card derivation (§3.2.3): `cardsFor`, `membershipSlot`, `setTeam`, `choiceEntries`, `moveChoice`, `deleteCard`, `undoCard`, plus the `StudentRow`/`SemesterCard`/`ChoiceEntry` types |
-| `composables/useDirectory.ts`              | `useAllPartners()` / `useAllProjects()` / `useAllStudents()` — keyed fetches any component can call without issuing a new request |
-| `composables/useSemesters.ts`              | Gained `useSemesterLookup()` — `semesterLabel(id)`, `semesterSortKey(id)`, `semesterOptions`, `teamLabel(team)` |
-| `composables/useStagedChanges.ts`          | Gained `STAGE_TINTS` (the green/blue/red tint classes) and `groupChildren(children)`                  |
-| `utils/labels.ts`                          | Display formatting: `titleCase`, `plural`, `formatSemester`, `semesterOrder`, `studentLabel`, `projectLabel` |
-| `utils/options.ts`                         | Every enum option list (`MEETING_DAY_OPTIONS`, `GENDER_OPTIONS`, …), `ENROLLMENT_FIELDS`, `dayLabel`  |
-| `utils/columns.ts`                         | `textColumn()` / `enumColumn()` — builders for the two `DataTableColumn` shapes that repeat across tabs |
-| `utils/search.ts`                          | Client-side typeahead filters (`searchPartners`, `searchStudents`, `searchProjects`) for `RecordSearchInput` |
-| `utils/errors.ts`                          | `errorMessage()` — the message buried in a `$fetch` rejection                                          |
-| `utils/recordDrafts.ts`                    | The draft types each minor-record modal resolves with (`ContactDraft`, `TeamDraft`, `SemesterInfoDraft`) |
+| Module                             | Purpose                                                                                                                                                                                                              |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `composables/useSemesterFilter.ts` | `provideSemesterFilter()` / `useSemesterFilter()` — the gated semester id and active tab (§2.3.2, §3)                                                                                                                |
+| `composables/useStagedSave.ts`     | `useStagedSave()` — the Confirm envelope shared by all three tabs: delete confirmation, `saving`, create→update→delete ordering, `staging.reset()`, refresh, one error toast                                         |
+| `composables/useRecordModals.ts`   | `useRecordModals()` — awaited `useOverlay()` openers for the six minor-record modals, normalizing an ESC/outside-click dismissal to `null`                                                                           |
+| `composables/useRowStaging.ts`     | `provideRowStaging()` / `useRowStaging()` — ambient `{staging, saving}` for components rendered inside a row's expansion                                                                                             |
+| `composables/useSemesterCards.ts`  | The Students tab's per-semester card derivation (§3.2.3): `cardsFor`, `membershipSlot`, `setTeam`, `choiceEntries`, `moveChoice`, `deleteCard`, `undoCard`, plus the `StudentRow`/`SemesterCard`/`ChoiceEntry` types |
+| `composables/useDirectory.ts`      | `useAllPartners()` / `useAllProjects()` / `useAllStudents()` — keyed fetches any component can call without issuing a new request                                                                                    |
+| `composables/useSemesters.ts`      | Gained `useSemesterLookup()` — `semesterLabel(id)`, `semesterSortKey(id)`, `semesterOptions`, `teamLabel(team)`                                                                                                      |
+| `composables/useStagedChanges.ts`  | Gained `STAGE_TINTS` (the green/blue/red tint classes) and `groupChildren(children)`                                                                                                                                 |
+| `utils/labels.ts`                  | Display formatting: `titleCase`, `plural`, `formatSemester`, `semesterOrder`, `studentLabel`, `projectLabel`                                                                                                         |
+| `utils/options.ts`                 | Every enum option list (`MEETING_DAY_OPTIONS`, `GENDER_OPTIONS`, …), `ENROLLMENT_FIELDS`, `dayLabel`                                                                                                                 |
+| `utils/columns.ts`                 | `textColumn()` / `enumColumn()` — builders for the two `DataTableColumn` shapes that repeat across tabs                                                                                                              |
+| `utils/search.ts`                  | Client-side typeahead filters (`searchPartners`, `searchStudents`, `searchProjects`) for `RecordSearchInput`                                                                                                         |
+| `utils/errors.ts`                  | `errorMessage()` — the message buried in a `$fetch` rejection                                                                                                                                                        |
+| `utils/recordDrafts.ts`            | The draft types each minor-record modal resolves with (`ContactDraft`, `TeamDraft`, `SemesterInfoDraft`)                                                                                                             |
 
 New components backing the modals and row expansions: `ModalFooter.vue`, `ContactFormModal.vue`,
 `TeamFormModal.vue`, `MemberPickerModal.vue`, `MoveMemberModal.vue`, `ProjectPickerModal.vue`,
@@ -668,37 +669,37 @@ hint text rather than blocking progression.
 
 ### 4.1 Section 1 — Semester & Meeting Day
 
-| Element        | Component                                          | Behavior                                                        |
-| -------------- | -------------------------------------------------- | ---------------------------------------------------------------- |
-| Semester       | `SemesterFilter` inside a `UFormField`             | Full filter, including Add/Delete Semester (§2.2)                 |
-| Meeting Day    | `URadioGroup` — Wednesday / Thursday                | Defaults to Wednesday; drives sections 1–3                        |
-| Export Teams   | `UButton` (↓ tray, soft)                            | Disabled until a semester and day are set; see §4.2               |
-| Teams list     | Bordered rows, `Project — Partner` + member count   | Only rendered once a semester is selected                         |
+| Element      | Component                                         | Behavior                                            |
+| ------------ | ------------------------------------------------- | --------------------------------------------------- |
+| Semester     | `SemesterFilter` inside a `UFormField`            | Full filter, including Add/Delete Semester (§2.2)   |
+| Meeting Day  | `URadioGroup` — Wednesday / Thursday              | Defaults to Wednesday; drives sections 1–3          |
+| Export Teams | `UButton` (↓ tray, soft)                          | Disabled until a semester and day are set; see §4.2 |
+| Teams list   | Bordered rows, `Project — Partner` + member count | Only rendered once a semester is selected           |
 
-| State              | Condition                                                   | Appearance                                                                     |
-| ------------------ | ------------------------------------------------------------ | ------------------------------------------------------------------------------ |
-| No semester        | `semesterId` unset                                           | Teams list hidden; upload disabled; generation disabled                         |
-| No teams for day   | Fetch settled and no team matches the semester + day          | Warning `UAlert` "No teams found" pointing the user at the Database tab         |
-| Teams present      | ≥1 matching team                                             | The list, each row showing its current membership count                         |
+| State            | Condition                                            | Appearance                                                              |
+| ---------------- | ---------------------------------------------------- | ----------------------------------------------------------------------- |
+| No semester      | `semesterId` unset                                   | Teams list hidden; upload disabled; generation disabled                 |
+| No teams for day | Fetch settled and no team matches the semester + day | Warning `UAlert` "No teams found" pointing the user at the Database tab |
+| Teams present    | ≥1 matching team                                     | The list, each row showing its current membership count                 |
 
 ### 4.2 Team Export
 
 Downloads `Wed Teams - Fall-2025.csv` (or `Thu …`) built entirely client-side from the already-fetched data. One
 row per membership on a team matching the selected day:
 
-| Column                                                   | Source                                                        |
-| -------------------------------------------------------- | ------------------------------------------------------------- |
-| Team                                                     | `F25 - Partner Name: Project Name`                             |
-| Student                                                  | `Last, First`                                                  |
-| Choice 1 … Choice 6                                      | The student's ranked choices for that semester, blank-padded to 6 |
+| Column                                                              | Source                                                               |
+| ------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| Team                                                                | `F25 - Partner Name: Project Name`                                   |
+| Student                                                             | `Last, First`                                                        |
+| Choice 1 … Choice 6                                                 | The student's ranked choices for that semester, blank-padded to 6    |
 | Student Major / Student Classification / Gender / Skills / Comments | The student's enrollment for that semester (skills joined with `; `) |
 
 ### 4.3 Section 2 — Bid File
 
-| Element         | Component                    | Behavior                                                                  |
-| --------------- | ---------------------------- | ------------------------------------------------------------------------- |
-| Bid Response CSV| `UFileUpload` (accept `.csv`)| Disabled until a semester is chosen; hint text "Select a semester above first." |
-| Upload          | `UButton` (↑ tray)           | Enabled only when a semester is set and the parsed file is error-free      |
+| Element          | Component                     | Behavior                                                                        |
+| ---------------- | ----------------------------- | ------------------------------------------------------------------------------- |
+| Bid Response CSV | `UFileUpload` (accept `.csv`) | Disabled until a semester is chosen; hint text "Select a semester above first." |
+| Upload           | `UButton` (↑ tray)            | Enabled only when a semester is set and the parsed file is error-free           |
 
 Selecting a file parses and validates it in the browser (`utils/bidCsv.ts`) **before** anything is sent. Validation
 checks that each required column group is present under one of its accepted header spellings — Student Name, SSO
@@ -706,45 +707,45 @@ ID, Classification, Enrollment, School and Major, Gender — and then that every
 per-row checks for netID uniqueness, classification, enrollment code, major, and gender are written but currently
 commented out.)
 
-| Validation state | Condition                                | Feedback                                                                    |
-| ---------------- | ---------------------------------------- | --------------------------------------------------------------------------- |
-| Missing columns  | A required column group has no match      | Error `UAlert` "Missing required columns" listing them; upload blocked        |
-| Row errors       | ≥1 row failed                             | Error `UAlert` with the count, plus a scrollable (`max-h-64`) list of `Row N: message`; upload blocked |
-| Valid            | No missing columns and no row errors      | Success `UAlert` "N row(s) validated successfully"; upload enabled           |
+| Validation state | Condition                            | Feedback                                                                                               |
+| ---------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| Missing columns  | A required column group has no match | Error `UAlert` "Missing required columns" listing them; upload blocked                                 |
+| Row errors       | ≥1 row failed                        | Error `UAlert` with the count, plus a scrollable (`max-h-64`) list of `Row N: message`; upload blocked |
+| Valid            | No missing columns and no row errors | Success `UAlert` "N row(s) validated successfully"; upload enabled                                     |
 
 Submitting `POST`s the parsed rows to `/api/team-formation/bids` with the semester and meeting day as query
 params, then refreshes the semester's projects and students. On success the file input is deliberately cleared, so
 changing the meeting day and clicking Upload again cannot silently re-import the same roster under the new day.
 
-| Result state       | Feedback                                                                                                   |
+| Result state       | Feedback                                                                                                     |
 | ------------------ | ------------------------------------------------------------------------------------------------------------ |
-| Uploading          | Upload button shows its loading spinner and is disabled                                                       |
-| Failed             | Error `UAlert` "Upload failed" with the server message                                                        |
-| Imported           | Success `UAlert` — "N student(s) imported, M choice(s) recorded."                                             |
-| Skipped rows       | Warning `UAlert` naming rows dropped for a missing SSO ID                                                     |
-| Unmatched projects | Warning `UAlert` listing bid choices whose project could not be matched                                       |
-| Meeting day moved  | Warning `UAlert` naming students who already had an enrollment that semester on the other day and were moved  |
+| Uploading          | Upload button shows its loading spinner and is disabled                                                      |
+| Failed             | Error `UAlert` "Upload failed" with the server message                                                       |
+| Imported           | Success `UAlert` — "N student(s) imported, M choice(s) recorded."                                            |
+| Skipped rows       | Warning `UAlert` naming rows dropped for a missing SSO ID                                                    |
+| Unmatched projects | Warning `UAlert` listing bid choices whose project could not be matched                                      |
+| Meeting day moved  | Warning `UAlert` naming students who already had an enrollment that semester on the other day and were moved |
 
 ### 4.4 Section 3 — Team Generation
 
-| Parameter                      | Input                                          | Default |
-| ------------------------------ | ---------------------------------------------- | ------- |
-| Min Team Size                  | `UInputNumber` (min 1)                          | 4       |
-| Max Team Size                  | `UInputNumber` (min = current min team size)    | 6       |
-| Prioritize returning students  | `UCheckbox`                                     | on      |
-| Prioritize 3200 first choice   | `UCheckbox`                                     | on      |
-| Balance gender                 | `UCheckbox`                                     | on      |
+| Parameter                     | Input                                        | Default |
+| ----------------------------- | -------------------------------------------- | ------- |
+| Min Team Size                 | `UInputNumber` (min 1)                       | 4       |
+| Max Team Size                 | `UInputNumber` (min = current min team size) | 6       |
+| Prioritize returning students | `UCheckbox`                                  | on      |
+| Prioritize 3200 first choice  | `UCheckbox`                                  | on      |
+| Balance gender                | `UCheckbox`                                  | on      |
 
 Generate Teams (sparkles) `POST`s `{ semesterId, day, config }` to `/api/team-formation/generate` and then
 refreshes the page's project and student data.
 
-| State            | Condition                                                | Appearance                                                                     |
-| ---------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| Blocked          | No semester, or no team for the semester + day             | Button disabled; hint "Select a semester/day with at least one team above first." |
-| Generating       | Request in flight                                          | Button spinner; prior results cleared                                            |
-| Failed           | Request threw (includes a missing Python/ortools host, or a minimum team size that cannot be met) | Error `UAlert` "Team generation failed" with the server message |
-| Succeeded clean  | No fallback placements                                     | Success `UAlert` "Teams generated successfully"                                  |
-| Succeeded w/ notes | ≥1 student had no valid choices                          | Warning `UAlert` "Teams generated — some students needed best-effort placement", listing the count placed by fallback logic |
+| State              | Condition                                                                                         | Appearance                                                                                                                  |
+| ------------------ | ------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Blocked            | No semester, or no team for the semester + day                                                    | Button disabled; hint "Select a semester/day with at least one team above first."                                           |
+| Generating         | Request in flight                                                                                 | Button spinner; prior results cleared                                                                                       |
+| Failed             | Request threw (includes a missing Python/ortools host, or a minimum team size that cannot be met) | Error `UAlert` "Team generation failed" with the server message                                                             |
+| Succeeded clean    | No fallback placements                                                                            | Success `UAlert` "Teams generated successfully"                                                                             |
+| Succeeded w/ notes | ≥1 student had no valid choices                                                                   | Warning `UAlert` "Teams generated — some students needed best-effort placement", listing the count placed by fallback logic |
 
 Results render as one bordered card per team: the project name over the list of assigned students
 (`First Last (netID)`).
@@ -762,20 +763,20 @@ the row currently in flight.
 
 ### 5.1 Active Users card
 
-| Column / element | Shown                                                                 |
-| ----------------- | ---------------------------------------------------------------------- |
-| Badges             | "Admin" (`role === 'ADMIN'`); "You" (`user.id === session id`)         |
-| Promote to Admin   | Shown when `role === 'USER'`. `PUT { role: 'ADMIN' }`, no confirmation |
-| Demote to User     | Shown when `role === 'ADMIN'`. Requires confirmation (§2.4) — "`Demote {name}?`" / "will lose admin access". Disabled (with a tooltip) for a self-row when this user is the only admin, so the round-trip to the server's identical check (§5.3) is avoided rather than surfaced as an error. `PUT { role: 'USER' }` |
-| Deactivate         | Always shown for an active user. Disabled (with a tooltip) on the signed-in admin's own row. `PUT { active: false }` |
+| Column / element | Shown                                                                                                                                                                                                                                                                                                                |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Badges           | "Admin" (`role === 'ADMIN'`); "You" (`user.id === session id`)                                                                                                                                                                                                                                                       |
+| Promote to Admin | Shown when `role === 'USER'`. `PUT { role: 'ADMIN' }`, no confirmation                                                                                                                                                                                                                                               |
+| Demote to User   | Shown when `role === 'ADMIN'`. Requires confirmation (§2.4) — "`Demote {name}?`" / "will lose admin access". Disabled (with a tooltip) for a self-row when this user is the only admin, so the round-trip to the server's identical check (§5.3) is avoided rather than surfaced as an error. `PUT { role: 'USER' }` |
+| Deactivate       | Always shown for an active user. Disabled (with a tooltip) on the signed-in admin's own row. `PUT { active: false }`                                                                                                                                                                                                 |
 
 ### 5.2 Inactive Users card
 
-| Column / element | Shown                                                          |
-| ----------------- | ------------------------------------------------------------------ |
-| Badge              | "Verified" / "Pending" (`emailVerified`), same as the old placeholder list |
-| Activate           | `PUT { active: true }`                                             |
-| Delete             | `DELETE /api/users/:id` — no confirmation modal (not required by spec; the action only ever targets an already-inactive account) |
+| Column / element | Shown                                                                                                                            |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Badge            | "Verified" / "Pending" (`emailVerified`), same as the old placeholder list                                                       |
+| Activate         | `PUT { active: true }`                                                                                                           |
+| Delete           | `DELETE /api/users/:id` — no confirmation modal (not required by spec; the action only ever targets an already-inactive account) |
 
 ### 5.3 Business rules (`server/services/userService.ts`)
 
@@ -783,12 +784,12 @@ The table above shows what the UI disables proactively; the service enforces the
 client, returning a plain `Error` that each handler maps to a `400`/`404` `createError` (the pattern every other
 service in `server/services/` follows — see `semesterService.deleteSemester` for the reference shape):
 
-| Rule                                                                                     | Enforced in           |
-| ------------------------------------------------------------------------------------------ | ----------------------- |
-| An admin cannot deactivate their own account                                              | `updateUser`            |
-| A role change is rejected unless the target is (or is being made, in the same call) active | `updateUser`            |
-| An admin cannot demote themselves unless at least one other `ADMIN` row exists             | `updateUser`            |
-| Only an inactive user can be deleted                                                       | `deleteUser`             |
+| Rule                                                                                       | Enforced in  |
+| ------------------------------------------------------------------------------------------ | ------------ |
+| An admin cannot deactivate their own account                                               | `updateUser` |
+| A role change is rejected unless the target is (or is being made, in the same call) active | `updateUser` |
+| An admin cannot demote themselves unless at least one other `ADMIN` row exists             | `updateUser` |
+| Only an inactive user can be deleted                                                       | `deleteUser` |
 
 Endpoints: `GET /api/users` (list, admin-only), `PUT /api/users/:id` (partial `{ active?, role? }`, admin-only),
 `DELETE /api/users/:id` (admin-only). All three call `requireAdmin` (`server/utils/authz.ts`) first. Activation and

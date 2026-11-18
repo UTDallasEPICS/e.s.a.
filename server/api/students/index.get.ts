@@ -1,6 +1,6 @@
-import studentService from "#server/services/studentService";
+import studentService from '#server/services/studentService'
 
 export default defineEventHandler(async (event) => {
-  const {semesterId} = getQuery<{semesterId?: string}>(event);
-  return await studentService.getAllStudents(semesterId);
-});
+  const { semesterId } = getQuery<{ semesterId?: string }>(event)
+  return await studentService.getAllStudents(semesterId)
+})

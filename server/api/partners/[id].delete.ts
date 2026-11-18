@@ -1,11 +1,11 @@
-import partnerService from "#server/services/partnerService";
+import partnerService from '#server/services/partnerService'
 
 export default defineEventHandler(async (event) => {
-  const id = getRouterParam(event, 'id');
+  const id = getRouterParam(event, 'id')
   if (!id) {
-    throw createError({statusCode: 400, statusMessage: 'Missing id parameter'});
+    throw createError({ statusCode: 400, statusMessage: 'Missing id parameter' })
   }
 
-  await partnerService.deletePartner(id);
-  return null;
-});
+  await partnerService.deletePartner(id)
+  return null
+})

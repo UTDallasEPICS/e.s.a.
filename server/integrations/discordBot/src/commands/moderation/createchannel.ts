@@ -1,8 +1,4 @@
-import { 
-  ApplicationCommandOptionType,  
-  ChatInputCommandInteraction, 
-  Client 
-} from 'discord.js';
+import { ApplicationCommandOptionType, ChatInputCommandInteraction, Client } from 'discord.js'
 
 const createChannelCommand = {
   name: 'createchannel',
@@ -36,25 +32,25 @@ const createChannelCommand = {
    */
   callback: async (client: Client, interaction: ChatInputCommandInteraction) => {
     // Defer the reply to give us time to process
-    await interaction.deferReply();
+    await interaction.deferReply()
 
     // Extract the name of the channel from the command options
-    const channelName = interaction.options.getString('name');
-    const categoryId = interaction.options.getChannel('category');
+    const channelName = interaction.options.getString('name')
+    const categoryId = interaction.options.getChannel('category')
 
     try {
       // Create the new channel
       const newChannel = await interaction.guild?.channels.create({
         name: channelName!,
         parent: categoryId?.id,
-      });
+      })
 
-      interaction.editReply(`Channel ${newChannel?.name} created successfully.`);
+      interaction.editReply(`Channel ${newChannel?.name} created successfully.`)
     } catch (error) {
-      console.error(error);
-      interaction.editReply('Failed to create channel.');
+      console.error(error)
+      interaction.editReply('Failed to create channel.')
     }
   },
-};
+}
 
-export default createChannelCommand;
+export default createChannelCommand

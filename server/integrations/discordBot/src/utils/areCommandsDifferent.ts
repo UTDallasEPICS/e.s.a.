@@ -1,32 +1,33 @@
 // Checks if two commands are different
 
 interface CommandChoice {
-  name: string;
-  value: any;
+  name: string
+  value: any
 }
 
 interface Command {
-  choices?: CommandChoice[];
-  [key: string]: any;
+  choices?: CommandChoice[]
+  [key: string]: any
 }
 
 const areCommandsDifferent = (existingCommand: Command, localCommand: Command): boolean => {
-  const areChoicesDifferent = (existingChoices: CommandChoice[] = [], localChoices: CommandChoice[] = []): boolean => {
+  const areChoicesDifferent = (
+    existingChoices: CommandChoice[] = [],
+    localChoices: CommandChoice[] = []
+  ): boolean => {
     for (const localChoice of localChoices) {
-      const existingChoice = existingChoices.find(
-        (choice) => choice.name === localChoice.name
-      );
+      const existingChoice = existingChoices.find((choice) => choice.name === localChoice.name)
 
       if (!existingChoice) {
-        return true;
+        return true
       }
 
       if (localChoice.value !== existingChoice.value) {
-        return true;
+        return true
       }
     }
-    return false;
-  };
+    return false
+  }
 
   // Add additional checks for other properties of the commands if needed
   // Example:
@@ -34,7 +35,7 @@ const areCommandsDifferent = (existingCommand: Command, localCommand: Command): 
   //   return true;
   // }
 
-  return areChoicesDifferent(existingCommand.choices, localCommand.choices);
-};
+  return areChoicesDifferent(existingCommand.choices, localCommand.choices)
+}
 
-export default areCommandsDifferent;
+export default areCommandsDifferent

@@ -1,73 +1,75 @@
-import type {ContactCreate, ContactRead} from "#server/services/contactService";
-import {prisma} from "#server/utils/prisma";
+import type { ContactCreate, ContactRead } from '#server/services/contactService'
+import { prisma } from '#server/utils/prisma'
 
 export interface PartnerProjectRead {
-  id: string;
-  name: string;
-  Teams: {id: string; semesterId: string}[];
+  id: string
+  name: string
+  Teams: { id: string; semesterId: string }[]
 }
 
 export interface PartnerRead {
-  id: string;
-  name: string;
-  Contacts: ContactRead[];
-  Projects: PartnerProjectRead[];
+  id: string
+  name: string
+  Contacts: ContactRead[]
+  Projects: PartnerProjectRead[]
 }
 
 export interface PartnerCreate {
-  name: string;
-  Contacts?: Omit<ContactCreate, 'partnerId'>[];
+  name: string
+  Contacts?: Omit<ContactCreate, 'partnerId'>[]
 }
 
 export interface PartnerUpdate {
-  name?: string;
+  name?: string
 }
 
 const PARTNER_INCLUDE = {
   Contacts: true,
-  Projects: {include: {Teams: {select: {id: true, semesterId: true}}}},
-} as const;
+  Projects: { include: { Teams: { select: { id: true, semesterId: true } } } },
+} as const
 
 const getAllPartners = async (semesterId?: string): Promise<PartnerRead[]> => {
   const partners = await prisma.partner.findMany({
-    where: semesterId ? {Projects: {some: {Teams: {some: {semesterId}}}}} : undefined,
-    orderBy: {name: 'asc'},
+    where: semesterId ? { Projects: { some: { Teams: { some: { semesterId } } } } } : undefined,
+    orderBy: { name: 'asc' },
     include: PARTNER_INCLUDE,
-  });
-  return partners;
+  })
+  return partners
 }
 
 const getPartnerById = async (id: string): Promise<PartnerRead | null> => {
   const partner = await prisma.partner.findUnique({
-    where: {id},
+    where: { id },
     include: PARTNER_INCLUDE,
   })
-  return partner;
+  return partner
 }
 
 const createPartner = async (data: PartnerCreate): Promise<PartnerRead> => {
-  const {Contacts, ...rest} = data;
+  const { Contacts, ...rest } = data
   const partner = await prisma.partner.create({
     data: {
       ...rest,
-      Contacts: Contacts ? {create: Contacts.map((contact, index) => ({...contact, isPrimary: index === 0}))} : undefined,
+      Contacts: Contacts
+        ? { create: Contacts.map((contact, index) => ({ ...contact, isPrimary: index === 0 })) }
+        : undefined,
     },
     include: PARTNER_INCLUDE,
   })
-  return partner;
+  return partner
 }
 
 const updatePartner = async (id: string, data: PartnerUpdate): Promise<PartnerRead> => {
   const partner = await prisma.partner.update({
-    where: {id},
+    where: { id },
     data,
     include: PARTNER_INCLUDE,
-  });
-  return partner;
+  })
+  return partner
 }
 
 const deletePartner = async (id: string): Promise<void> => {
-  await prisma.partner.delete({where: {id}});
+  await prisma.partner.delete({ where: { id } })
 }
 
 const partnerService = {
@@ -76,6 +78,6 @@ const partnerService = {
   createPartner,
   updatePartner,
   deletePartner,
-};
+}
 
-export default partnerService;
+export default partnerService

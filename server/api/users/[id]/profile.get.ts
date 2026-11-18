@@ -27,7 +27,10 @@ export default defineEventHandler(async (event) => {
 
   const imagePath = record?.image
 
-  const filePath = path.join(process.env.UPLOAD_STORAGE_PATH || 'public/images', imagePath || 'null')
+  const filePath = path.join(
+    process.env.UPLOAD_STORAGE_PATH || 'public/images',
+    imagePath || 'null'
+  )
 
   if (!fs.existsSync(filePath)) {
     throw createError({ statusCode: 404, statusMessage: 'File not found' })
