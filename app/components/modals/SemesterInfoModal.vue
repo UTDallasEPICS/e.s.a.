@@ -1,4 +1,17 @@
 <script setup lang="ts">
+  /**
+   * Purpose
+   * Render the semester info modal part of the ESA interface.
+   *
+   * Inputs
+   * - The component’s props, shared state, and any user actions it handles.
+   *
+   * Outputs
+   * - Rendered controls or content, plus events exposed to the parent where applicable.
+   *
+   * Pseudocode
+   * Read the inputs → prepare values for display → render the template → respond to user actions.
+   */
   import ModalFooter from '~/components/modals/ModalFooter.vue'
   import type { ProjectRead } from '#server/services/projectService'
   import { projectLabel } from '~/utils/labels'
@@ -12,6 +25,7 @@
   } from '~/utils/options'
   import type { SemesterInfoDraft } from '~/utils/recordDrafts'
 
+  // Use defineProps to initialize props.
   const props = defineProps<{
     /** Whether this student can hold a Mentor card at all; gates the Role radio. */
     isMentor: boolean
@@ -26,8 +40,10 @@
     projects: ProjectRead[]
   }>()
 
+  // Use defineEmits to initialize emit.
   const emit = defineEmits<{ close: [draft: SemesterInfoDraft | null] }>()
 
+  // Use reactive to initialize draft.
   const draft = reactive<SemesterInfoDraft>({
     semesterId: '',
     role: 'STUDENT',
@@ -38,8 +54,10 @@
     gender: 'OTHER',
   })
 
+  // Recalculate takenForRole when the values it reads change.
   const takenForRole = computed(() => new Set(draft.role === 'MENTOR' ? [] : props.taken.STUDENT))
 
+  // Recalculate semesterItems when the values it reads change.
   const semesterItems = computed(() =>
     props.semesters.map((semester) => ({
       ...semester,
@@ -47,23 +65,31 @@
     }))
   )
 
+  // Recalculate valid when the values it reads change.
   const valid = computed(() => !!draft.semesterId && !takenForRole.value.has(draft.semesterId))
 
   // A project is only assignable in the semester it has a team for, so the pick cannot outlive it.
   watch(
     () => draft.semesterId,
     () => {
+      // Update draft.project with the value on the right.
       draft.project = undefined
     }
   )
 
+  // Define the helper that will search.
   async function search(query: string) {
+    // Check whether !draft.semesterId before running this branch.
     if (!draft.semesterId) return []
+    // Pass searchProjects(props.projects, query, { semesterId: draft.semesterId }) back to the caller.
     return searchProjects(props.projects, query, { semesterId: draft.semesterId })
   }
 
+  // Define the helper that will on confirm.
   function onConfirm() {
+    // Check whether !valid.value before running this branch.
     if (!valid.value) return
+    // Call emit to run this step.
     emit('close', { ...draft })
   }
 </script>

@@ -1,3 +1,16 @@
+/**
+ * Purpose
+ * Provide the schemas logic used by other parts of ESA.
+ *
+ * Inputs
+ * - Values passed by callers and any configuration or records imported here.
+ *
+ * Outputs
+ * - The values, types, or functions exported by this file.
+ *
+ * Pseudocode
+ * Load the dependencies → define the file’s rules or helpers → expose them for other files to use.
+ */
 import { z } from 'zod'
 import type { H3Event } from 'h3'
 import type {
@@ -29,10 +42,15 @@ import type {
 // ---- enums (kept in sync with the Prisma enums in prisma/schema.prisma) ----
 
 const yearEnum = z.enum(['FRESHMAN', 'SOPHOMORE', 'JUNIOR', 'SENIOR']) satisfies z.ZodType<Year>
+// Define classEnum for the steps below.
 const classEnum = z.enum(['EPCS_2200', 'EPCS_3200']) satisfies z.ZodType<Class>
+// Define genderEnum for the steps below.
 const genderEnum = z.enum(['MALE', 'FEMALE', 'OTHER']) satisfies z.ZodType<Gender>
+// Define seasonEnum for the steps below.
 const seasonEnum = z.enum(['SPRING', 'SUMMER', 'FALL']) satisfies z.ZodType<Season>
+// Define projectTypeEnum for the steps below.
 const projectTypeEnum = z.enum(['SOFTWARE', 'HARDWARE', 'BOTH']) satisfies z.ZodType<ProjectType>
+// Define projectStatusEnum for the steps below.
 const projectStatusEnum = z.enum([
   'NEW',
   'RETURNING',
@@ -40,6 +58,7 @@ const projectStatusEnum = z.enum([
   'WITHDRAWN',
   'HOLD',
 ]) satisfies z.ZodType<ProjectStatus>
+// Define meetingDayEnum for the steps below.
 const meetingDayEnum = z.enum(['WEDNESDAY', 'THURSDAY']) satisfies z.ZodType<ProjectMeetingDay>
 
 // ---- choice ----
@@ -52,6 +71,7 @@ export const choiceCreateSchema = z.object({
   semesterId: z.string(),
 })
 
+// Use z.object to initialize choiceUpdateSchema.
 export const choiceUpdateSchema = z.object({
   rank: z.int().optional(),
   semesterId: z.string().optional(),
@@ -73,6 +93,7 @@ export const contactCreateSchema = z.object({
   isPrimary: z.boolean().optional(),
 })
 
+// Use z.object to initialize contactUpdateSchema.
 export const contactUpdateSchema = z.object({
   name: z.string().optional(),
   email: z.string().optional(),
@@ -99,6 +120,7 @@ export const enrollmentCreateSchema = z.object({
   comments: z.string().optional(),
 })
 
+// Use z.object to initialize enrollmentUpdateSchema.
 export const enrollmentUpdateSchema = z.object({
   semesterId: z.string().optional(),
   gender: genderEnum.optional(),
@@ -139,6 +161,7 @@ export const teamCreateSchema = z.object({
   Memberships: z.array(nestedMembershipForTeamSchema).optional(),
 })
 
+// Use z.object to initialize teamUpdateSchema.
 export const teamUpdateSchema = z.object({
   semesterId: z.string().optional(),
   meetingDay: meetingDayEnum.optional(),
@@ -160,6 +183,7 @@ export const projectCreateSchema = z.object({
   Teams: z.array(nestedTeamCreateSchema).optional(),
 })
 
+// Use z.object to initialize projectUpdateSchema.
 export const projectUpdateSchema = z.object({
   name: z.string().optional(),
   description: z.string().optional(),
@@ -176,6 +200,7 @@ export const partnerCreateSchema = z.object({
   Contacts: z.array(nestedContactCreateSchema).optional(),
 })
 
+// Use z.object to initialize partnerUpdateSchema.
 export const partnerUpdateSchema = z.object({
   name: z.string().optional(),
 })
@@ -188,6 +213,7 @@ export const semesterCreateSchema = z.object({
   season: seasonEnum,
 })
 
+// Use z.object to initialize semesterUpdateSchema.
 export const semesterUpdateSchema = z.object({
   year: z.int().optional(),
   season: seasonEnum.optional(),
@@ -212,6 +238,7 @@ export const studentCreateSchema = z.object({
   Choices: z.array(nestedChoiceCreateSchema).optional(),
 })
 
+// Use z.object to initialize studentUpdateSchema.
 export const studentUpdateSchema = z.object({
   github: z.string().nullish(),
   discord: z.string().nullish(),
@@ -229,13 +256,18 @@ export const studentUpdateSchema = z.object({
 // ---------------------------------------------------------------------------
 
 export async function parseBody<T>(event: H3Event, schema: z.ZodType<T>): Promise<T> {
+  // Define body for the steps below.
   const body = await readBody(event)
+  // Use schema.safeParse to initialize result.
   const result = schema.safeParse(body)
+  // Check whether !result.success before running this branch.
   if (!result.success) {
+    // Stop this operation and tell the caller why it cannot continue.
     throw createError({
       statusCode: 400,
       statusMessage: z.prettifyError(result.error),
     })
   }
+  // Pass result.data back to the caller.
   return result.data
 }

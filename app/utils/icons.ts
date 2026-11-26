@@ -1,3 +1,16 @@
+/**
+ * Purpose
+ * Provide the icons logic used by other parts of ESA.
+ *
+ * Inputs
+ * - Values passed by callers and any configuration or records imported here.
+ *
+ * Outputs
+ * - The values, types, or functions exported by this file.
+ *
+ * Pseudocode
+ * Load the dependencies → define the file’s rules or helpers → expose them for other files to use.
+ */
 // Icon Reference (docs/design/ui.md §2.7)
 export const ACTION_ICONS = {
   add: 'i-heroicons-plus',

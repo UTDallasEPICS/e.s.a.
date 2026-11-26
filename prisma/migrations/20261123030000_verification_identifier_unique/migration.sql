@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX IF NOT EXISTS "verification_identifier_key" ON "verification"("identifier");

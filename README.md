@@ -1,135 +1,46 @@
-# Nuxt Template (Better Auth + Prisma + SQLite)
+# EPICS Super App (ESA)
 
-A modern, production-ready Nuxt 4 template featuring a robust authentication system, ORM integration, and a clean UI foundation.
+ESA tracks EPICS students, semester enrollments, projects, assignments, and program insights. The local redesign is available at `/database-redesign`.
 
-## Features
+## Run locally
 
-- **Nuxt 4**: The latest and greatest from the Nuxt team.
-- **Better Auth**: Comprehensive authentication with **Email OTP** support.
-- **Prisma**: Type-safe ORM for interacting with the database.
-- **SQLite**: Lightweight, zero-configuration database, ideal for development and small-to-medium projects.
-- **Nuxt UI v3**: Beautiful, accessible, and customizable UI components built with Tailwind CSS.
-- **Nodemailer**: Pre-configured for sending verification emails via Gmail.
+1. Install the pinned dependencies with `pnpm install --frozen-lockfile`.
+2. Use `.env.example` to configure your local environment. For the existing local copy, keep its database and environment settings.
+3. Run `pnpm dev --host 127.0.0.1 --port 5173` and open `http://127.0.0.1:5173/database-redesign`.
 
-## Stack
+Use your ESA account at `/auth`. AI search requires an administrator session and a server-side OpenRouter key set as `NUXT_OPENROUTER_API_KEY`. Keep credentials in the local environment. `pnpm prisma:reset` erases and reseeds the configured database, so use it only for a disposable database.
 
-- **Framework**: [Nuxt](https://nuxt.com/)
-- **Auth**: [Better Auth](https://www.better-auth.com/)
-- **ORM**: [Prisma](https://www.prisma.io/)
-- **Database**: [SQLite](https://sqlite.org/)
-- **UI Framework**: [Nuxt UI](https://ui3.nuxt.com/)
-- **Email**: [Nodemailer](https://nodemailer.com/)
+## Where to edit
 
-## Getting Started
+| Area | Location |
+| --- | --- |
+| Redesign navigation, theme, and pinned results | `app/pages/database-redesign.vue` |
+| Dashboard, student and project pages, charts, and PDF export | `app/components/database-redesign/` |
+| Imported records, semester profiles, and local edits | `app/components/verified-data.json`, `data.ts`, and `contentStore.ts` in `app/components/` |
+| Shared project status rules | `app/components/projectSemesterStatus.ts` |
+| Admin-gated AI search | `server/api/ai/ask.post.ts` |
+| AI request validation, planning, and calculations | `server/utils/ai/` |
+| Database schema, migrations, and seed data | `prisma/` |
 
-### Want to use the template?
+The redesign starts from verified imported records. The content store applies edits made in the browser. AI requests send that current workspace state to the local server, which validates it and combines it with database metadata. The model interprets the question, and the server calculates the result from recorded data. A student can count once in each semester they enrolled in, so semester enrollments and unique students use different denominators.
 
-See the [Template Usage docs](docs/template_usage.md). Otherwise, feel free to keep moving with the setup steps!
+## Checks
 
-### 1. Clone the repository
+- `pnpm check:views` compiles the redesigned views.
+- `pnpm test` checks report calculations, filters, authorization, and result rendering models. Database-backed tests use the configured local test records, so run them against a local development database.
+- The import scripts and live AI audits in `scripts/` are maintenance tools. Some use local data preparation files or an OpenRouter key.
 
-```bash
-git clone <your-repo-url>
-cd nuxt-template
-```
+## Beginner File Walkthrough
 
-### 2. Install dependencies
+See the [file-by-file guide](docs/code-walkthrough/README.md) for purpose, inputs, outputs, pseudocode, and notes for markup, styles, and schema files.
 
-This project uses `pnpm`, but you can use `npm` as well.
+## Local records on this branch
 
-```bash
-pnpm install
-```
+The redesign starts with an empty workspace. The dev and build commands create
+`app/components/verified-data.json` from the empty example only when the local
+file is missing. Staff with an approved ESA import can place that file there
+before starting the app. Do not commit real imports or the local database.
 
-### 3. Setup Environment Variables
-
-Copy the example environment file and fill in your details.
-
-```bash
-cp .env.example .env
-```
-
-Open `.env` and configure the following:
-
-- `DATABASE_URL`: The SQLite connection string (default: `file:./dev.db`).
-- `BETTER_AUTH_SECRET`: A secure random string for encryption. You can generate one using `openssl rand -hex 32`.
-- `BETTER_AUTH_URL`: The base URL of your application (default: `http://localhost:3000`).
-- `EMAIL_USER`: Your Gmail address (for OTP delivery).
-- `EMAIL_PASS`: Your Gmail App Password. [How to generate an App Password](https://support.google.com/accounts/answer/185833).
-
-### 4. Database Setup
-
-Initialize your SQLite database and run migrations. You will need to run this command anytime you need to change or create a database.
-If there are any migrations that need to be run, the command will ask for a name for the migration. You can simply hit enter, or name your migration.
-
-```bash
-pnpm prisma:reset
-```
-
-### 5. Start the development server
-
-```bash
-pnpm dev
-```
-
-Your application will be available at `http://localhost:3000`. This command also starts **Prisma Studio** automatically.
-
-### 6. How to Login
-
-Login requires an email address that already exists in the database.
-
-- **Option A: Use the seeded user**
-  Go to `/auth` and log in with `email@example.com`.
-- **Option B: Use your own email**
-  Update `prisma/seed.ts` with your email, then run `pnpm prisma:reset` to re-seed.
-
-**To get your OTP:**
-
-- Check your configured email inbox.
-- **Or**, check the **Prisma Studio** tab in your browser and look in the `Verification` table.
-
-## Project Structure
-
-- `app/`: Frontend code (pages, components, assets, composables).
-- `server/`: Backend code (API routes, authentication logic, database utilities).
-- `prisma/`: Database schema, migrations, and seed scripts.
-- `public/`: Static assets.
-
-## GitHub Actions Configuration
-
-**Important**: You must update the GitHub Actions workflow to point to your own repository and AWS configuration.
-
-### Update GitHub Actions
-
-Add the following Secrets and Variables to your repository:
-
-1. **ACTIONS_ROLE_ARN (Secret)**:
-
-   ```yaml
-   arn:aws:iam::YOUR-AWS-ACCOUNT-ID:role/YOUR-ROLE-NAME
-   ```
-
-2. **REPOSITORY (Variable)**:
-
-   ```yaml
-   your-repository-name
-   ```
-
-Optionally, you may update the AWS region.
-
-3. **AWS Region** (line 26 in `.github/workflows/main.yml`):
-   ```yaml
-   aws-region: your-aws-region
-   ```
-
-### Required AWS Setup
-
-Before the GitHub Actions will work, you need:
-
-1. **AWS ECR Repository**: Create a repository in Amazon ECR
-2. **IAM Role**: Create a role with GitHub Actions OIDC provider and ECR permissions
-3. **GitHub Secrets**: Ensure your repository has the necessary AWS permissions
-
-## License
-
-MIT
+The academic reporting tests and live audits expect the verified roster data
+and the matching local development database. Use `pnpm check:views` to check
+Vue compilation on a fresh checkout with the empty workspace.

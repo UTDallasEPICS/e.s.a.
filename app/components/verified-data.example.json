@@ -1,0 +1,30 @@
+{
+  "semesters": [
+    {
+      "id": "SP26",
+      "label": "Spring 2026",
+      "year": 2026,
+      "term": "Spring"
+    },
+    {
+      "id": "FA26",
+      "label": "Fall 2026",
+      "year": 2026,
+      "term": "Fall"
+    }
+  ],
+  "students": [],
+  "projects": [],
+  "partners": [],
+  "teams": [],
+  "choices": [],
+  "demographics": [],
+  "source": {
+    "spring": [],
+    "fall": {
+      "archive": "",
+      "provenance": []
+    },
+    "crossSemesterMatching": {}
+  }
+}

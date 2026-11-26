@@ -1,14 +1,30 @@
 <script setup lang="ts">
+  /**
+   * Purpose
+   * Render the move member modal part of the ESA interface.
+   *
+   * Inputs
+   * - The component’s props, shared state, and any user actions it handles.
+   *
+   * Outputs
+   * - Rendered controls or content, plus events exposed to the parent where applicable.
+   *
+   * Pseudocode
+   * Read the inputs → prepare values for display → render the template → respond to user actions.
+   */
   import ModalFooter from '~/components/modals/ModalFooter.vue'
   import type { SelectOption } from '~/utils/options'
 
+  // Use defineProps to initialize props.
   const props = defineProps<{
     /** The project's other teams; empty when there is nowhere to move to. */
     teams: SelectOption[]
   }>()
 
+  // Use defineEmits to initialize emit.
   const emit = defineEmits<{ close: [teamId: string | null] }>()
 
+  // Store destination as state so Vue reacts when it changes.
   const destination = ref<string | undefined>()
 </script>
 

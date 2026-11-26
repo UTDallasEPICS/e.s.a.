@@ -1,3 +1,16 @@
+/**
+ * Purpose
+ * Provide the options logic used by other parts of ESA.
+ *
+ * Inputs
+ * - Values passed by callers and any configuration or records imported here.
+ *
+ * Outputs
+ * - The values, types, or functions exported by this file.
+ *
+ * Pseudocode
+ * Load the dependencies → define the file’s rules or helpers → expose them for other files to use.
+ */
 // One home for every enum option list rendered by a USelectMenu, URadioGroup, or column filter.
 //
 // The labels are written out rather than derived from the enum spellings: a generic transform gets
@@ -23,17 +36,20 @@ export type ProjectType = ProjectRead['type']
 export type ProjectStatus = ProjectRead['status']
 export type Season = SemesterRead['season']
 
+// Define MEETING_DAY_OPTIONS for the steps below.
 export const MEETING_DAY_OPTIONS: SelectOption<MeetingDay>[] = [
   { label: 'Wednesday', value: 'WEDNESDAY' },
   { label: 'Thursday', value: 'THURSDAY' },
 ]
 
+// Define GENDER_OPTIONS for the steps below.
 export const GENDER_OPTIONS: SelectOption<Gender>[] = [
   { label: 'Male', value: 'MALE' },
   { label: 'Female', value: 'FEMALE' },
   { label: 'Other', value: 'OTHER' },
 ]
 
+// Define YEAR_OPTIONS for the steps below.
 export const YEAR_OPTIONS: SelectOption<Year>[] = [
   { label: 'Freshman', value: 'FRESHMAN' },
   { label: 'Sophomore', value: 'SOPHOMORE' },
@@ -41,17 +57,20 @@ export const YEAR_OPTIONS: SelectOption<Year>[] = [
   { label: 'Senior', value: 'SENIOR' },
 ]
 
+// Define CLASS_OPTIONS for the steps below.
 export const CLASS_OPTIONS: SelectOption<Class>[] = [
   { label: 'EPCS 2200', value: 'EPCS_2200' },
   { label: 'EPCS 3200', value: 'EPCS_3200' },
 ]
 
+// Define PROJECT_TYPE_OPTIONS for the steps below.
 export const PROJECT_TYPE_OPTIONS: SelectOption<ProjectType>[] = [
   { label: 'Software', value: 'SOFTWARE' },
   { label: 'Hardware', value: 'HARDWARE' },
   { label: 'Both', value: 'BOTH' },
 ]
 
+// Define PROJECT_STATUS_OPTIONS for the steps below.
 export const PROJECT_STATUS_OPTIONS: SelectOption<ProjectStatus>[] = [
   { label: 'New', value: 'NEW' },
   { label: 'Returning', value: 'RETURNING' },
@@ -60,6 +79,7 @@ export const PROJECT_STATUS_OPTIONS: SelectOption<ProjectStatus>[] = [
   { label: 'Hold', value: 'HOLD' },
 ]
 
+// Define SEASON_OPTIONS for the steps below.
 export const SEASON_OPTIONS: SelectOption<Season>[] = [
   { label: 'Spring', value: 'SPRING' },
   { label: 'Summer', value: 'SUMMER' },
@@ -72,7 +92,9 @@ export const MENTOR_FILTER_OPTIONS: SelectOption[] = [
   { label: 'Student', value: 'false' },
 ]
 
+// Define the helper that will day label.
 export function dayLabel(day?: string | null) {
+  // Pass day ? titleCase(day) : '—' back to the caller.
   return day ? titleCase(day) : '—'
 }
 

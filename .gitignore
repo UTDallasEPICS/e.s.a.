@@ -25,3 +25,9 @@ logs
 
 /prisma/generated
 /dev.db
+
+# Private local records and database copies
+/app/components/verified-data.json
+/app/components/fall2026.json
+*.db
+*.db-*

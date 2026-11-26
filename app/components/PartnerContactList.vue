@@ -1,4 +1,17 @@
 <script setup lang="ts">
+  /**
+   * Purpose
+   * Render the partner contact list part of the ESA interface.
+   *
+   * Inputs
+   * - The component’s props, shared state, and any user actions it handles.
+   *
+   * Outputs
+   * - Rendered controls or content, plus events exposed to the parent where applicable.
+   *
+   * Pseudocode
+   * Read the inputs → prepare values for display → render the template → respond to user actions.
+   */
   import { ACTION_ICONS } from '~/utils/icons'
   import type { ContactRead } from '#server/services/contactService'
   import type { PartnerRead } from '#server/services/partnerService'
@@ -10,12 +23,14 @@
 
   type ContactField = 'name' | 'email' | 'phone'
 
+  // Define CONTACT_FIELDS for the steps below.
   const CONTACT_FIELDS = [
     { key: 'name', label: 'Name' },
     { key: 'email', label: 'Email' },
     { key: 'phone', label: 'Phone' },
   ] as const
 
+  // Use defineProps to initialize props.
   const props = defineProps<{
     rowId: string
     row: PartnerRead
@@ -23,36 +38,52 @@
     disabled?: boolean
   }>()
 
+  // Use defineEmits to initialize emit.
   const emit = defineEmits<{ add: [] }>()
 
+  // Use useRowStaging to initialize { staging, saving }.
   const { staging, saving } = useRowStaging()
 
+  // Define the helper that will contact value.
   function contactValue(contactId: string, field: ContactField) {
+    // Pass staging.children.get(props.rowId, 'Contacts', contactId, field) ?? '' back to the caller.
     return staging.children.get(props.rowId, 'Contacts', contactId, field) ?? ''
   }
 
+  // Define the helper that will set contact.
   function setContact(contactId: string, field: ContactField, value: any) {
+    // Call staging.children.set to run this step.
     staging.children.set(props.rowId, 'Contacts', contactId, field, value ?? '')
   }
 
+  // Define the helper that will contact edited.
   function contactEdited(contactId: string, field: ContactField) {
+    // Pass staging.children.isEdited(props.rowId, 'Contacts', contactId, field) back to the caller.
     return staging.children.isEdited(props.rowId, 'Contacts', contactId, field)
   }
 
   /** Fetched contacts with staged edits applied, plus staged-new ones, flagged with the primary. */
   const cards = computed<ContactCard[]>(() => {
+    // Use staging.children.merge to initialize merged.
     const merged = staging.children.merge<ContactRead>(props.rowId, 'Contacts')
+    // Use merged.filter to initialize live.
     const live = merged.filter((card) => !card.deleted)
+    // Define primaryId for the steps below.
     const primaryId = (live.find((card) => card.record?.isPrimary) ?? live[0])?.id
+    // Pass merged.map((card) => ({ ...card, isPrimary: card.id === primaryId })) back to the caller.
     return merged.map((card) => ({ ...card, isPrimary: card.id === primaryId }))
   })
 
   /** Promotes one contact and clears the flag on the previous primary, both staged locally. */
   function makePrimary(id: string) {
+    // Use cards.value.find to initialize current.
     const current = cards.value.find((card) => card.isPrimary)
+    // Check whether current && current.id !== id before running this branch.
     if (current && current.id !== id) {
+      // Call staging.children.set to run this step.
       staging.children.set(props.rowId, 'Contacts', current.id, 'isPrimary', false)
     }
+    // Call staging.children.set to run this step.
     staging.children.set(props.rowId, 'Contacts', id, 'isPrimary', true)
   }
 </script>

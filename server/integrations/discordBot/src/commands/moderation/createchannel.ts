@@ -1,5 +1,19 @@
+/**
+ * Purpose
+ * Provide the createchannel logic used by other parts of ESA.
+ *
+ * Inputs
+ * - Values passed by callers and any configuration or records imported here.
+ *
+ * Outputs
+ * - The values, types, or functions exported by this file.
+ *
+ * Pseudocode
+ * Load the dependencies → define the file’s rules or helpers → expose them for other files to use.
+ */
 import { ApplicationCommandOptionType, ChatInputCommandInteraction, Client } from 'discord.js'
 
+// Define createChannelCommand for the steps below.
 const createChannelCommand = {
   name: 'createchannel',
   description: 'Creates a new channel',
@@ -36,6 +50,7 @@ const createChannelCommand = {
 
     // Extract the name of the channel from the command options
     const channelName = interaction.options.getString('name')
+    // Use interaction.options.getChannel to initialize categoryId.
     const categoryId = interaction.options.getChannel('category')
 
     try {
@@ -45,9 +60,12 @@ const createChannelCommand = {
         parent: categoryId?.id,
       })
 
+      // Call interaction.editReply to run this step.
       interaction.editReply(`Channel ${newChannel?.name} created successfully.`)
     } catch (error) {
+      // Call console.error to run this step.
       console.error(error)
+      // Call interaction.editReply to run this step.
       interaction.editReply('Failed to create channel.')
     }
   },

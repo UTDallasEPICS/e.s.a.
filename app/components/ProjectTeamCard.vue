@@ -1,4 +1,17 @@
 <script setup lang="ts">
+  /**
+   * Purpose
+   * Render the project team card part of the ESA interface.
+   *
+   * Inputs
+   * - The component’s props, shared state, and any user actions it handles.
+   *
+   * Outputs
+   * - Rendered controls or content, plus events exposed to the parent where applicable.
+   *
+   * Pseudocode
+   * Read the inputs → prepare values for display → render the template → respond to user actions.
+   */
   import { ACTION_ICONS } from '~/utils/icons'
   import type { MergedChild } from '~/composables/useStagedChanges'
   import { studentLabel, formatSemester, semesterOrder } from '~/utils/labels'
@@ -15,6 +28,7 @@
     isMentor: boolean
   }
 
+  // Use defineProps to initialize props.
   const props = defineProps<{
     rowId: string
     row: ProjectRead
@@ -23,25 +37,34 @@
     disabled?: boolean
   }>()
 
+  // Use defineEmits to initialize emit.
   const emit = defineEmits<{
     'add-member': [teamId: string, isMentor: boolean]
     'move-member': [member: MergedChild<MemberLike>]
   }>()
 
+  // Use useRowStaging to initialize { staging, saving }.
   const { staging, saving } = useRowStaging()
+  // Use useAllStudents to initialize { data: allStudents }.
   const { data: allStudents } = useAllStudents()
 
+  // Define roles for the steps below.
   const roles = [
     { plural: 'Mentors', singular: 'Mentor', isMentor: true },
     { plural: 'Students', singular: 'Student', isMentor: false },
   ]
 
+  // Define the helper that will member label.
   function memberLabel(member: MemberLike) {
+    // Define student for the steps below.
     const student = member.Student ?? allStudents.value.find((s) => s.id === member.studentId)
+    // Pass student ? studentLabel(student) : 'Unknown student' back to the caller.
     return student ? studentLabel(student) : 'Unknown student'
   }
 
+  // Define the helper that will option label.
   function optionLabel(options: SelectOption[], value?: string) {
+    // Pass options.find((o) => o.value === value)?.label ?? value ?? '—' back to the caller.
     return options.find((o) => o.value === value)?.label ?? value ?? '—'
   }
 
@@ -52,14 +75,18 @@
    * belonged to, most recent semester first.
    */
   function memberDetails(member: MemberLike) {
+    // Use allStudents.value.find to initialize student.
     const student = allStudents.value.find((s) => s.id === member.studentId)
+    // Use student?.Enrollments.find to initialize enrollment.
     const enrollment: EnrollmentRead | undefined = student?.Enrollments.find(
       (e) => e.semesterId === props.card.record.semesterId
     )
+    // Use (student?.Memberships ?? []) .filter((m) => m.teamId !== props.card.id) .sort((a, b) => semesterOrde to initialize previousProjects.
     const previousProjects = (student?.Memberships ?? [])
       .filter((m) => m.teamId !== props.card.id)
       .sort((a, b) => semesterOrder(b.Team.Semester) - semesterOrder(a.Team.Semester))
       .map((m) => `${m.Team.Project.name} (${formatSemester(m.Team.Semester)})`)
+    // Pass { enrollment, previousProjects, hasMore: !!enrollment?.skills.length || !!enrollment?.comments || pr back to the caller.
     return {
       enrollment,
       previousProjects,
@@ -69,6 +96,7 @@
 
   /** Memberships are staged flat on the project row and grouped by team id for display. */
   function teamMembers(isMentor: boolean) {
+    // Pass staging.children .merge<MemberLike>(props.rowId, 'Memberships') .filter( (member) => member.record.t back to the caller.
     return staging.children
       .merge<MemberLike>(props.rowId, 'Memberships')
       .filter(

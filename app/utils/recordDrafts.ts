@@ -1,3 +1,16 @@
+/**
+ * Purpose
+ * Provide the record drafts logic used by other parts of ESA.
+ *
+ * Inputs
+ * - Values passed by callers and any configuration or records imported here.
+ *
+ * Outputs
+ * - The values, types, or functions exported by this file.
+ *
+ * Pseudocode
+ * Load the dependencies → define the file’s rules or helpers → expose them for other files to use.
+ */
 // What each minor-record modal resolves with. These live outside the components because a
 // `<script setup>` block only ever emits its default export — a type declared inside one cannot be
 // imported by the tab that consumes it.

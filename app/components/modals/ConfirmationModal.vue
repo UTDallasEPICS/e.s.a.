@@ -1,8 +1,23 @@
 <script setup lang="ts">
+  /**
+   * Purpose
+   * Render the confirmation modal part of the ESA interface.
+   *
+   * Inputs
+   * - The component’s props, shared state, and any user actions it handles.
+   *
+   * Outputs
+   * - Rendered controls or content, plus events exposed to the parent where applicable.
+   *
+   * Pseudocode
+   * Read the inputs → prepare values for display → render the template → respond to user actions.
+   */
   import ModalFooter from '~/components/modals/ModalFooter.vue'
   import type { ConfirmOptions } from '~/composables/useConfirm'
 
+  // Use defineProps to initialize props.
   const props = defineProps<ConfirmOptions>()
+  // Use defineEmits to initialize emit.
   const emit = defineEmits<{ close: [confirmed: boolean] }>()
 </script>
 

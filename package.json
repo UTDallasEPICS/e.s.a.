@@ -3,12 +3,15 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "build": "nuxt build",
-    "dev": "nuxt dev",
-    "generate": "nuxt generate",
+    "build": "node scripts/prepare-local-records.mjs && nuxt build",
+    "dev": "node scripts/prepare-local-records.mjs && nuxt dev",
+    "generate": "node scripts/prepare-local-records.mjs && nuxt generate",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
-    "prisma:reset": "prisma migrate reset && prisma generate && prisma db seed"
+    "prisma:reset": "prisma migrate reset && prisma generate && prisma db seed",
+    "test": "node scripts/prepare-local-records.mjs && tsx --test \"server/utils/ai/*.test.ts\" app/components/database-redesign/aiResultPresentation.test.ts",
+    "check:views": "node scripts/prepare-local-records.mjs && tsx scripts/check-redesign-vue-views.ts",
+    "prepare:records": "node scripts/prepare-local-records.mjs"
   },
   "dependencies": {
     "@nuxt/image": "2.0.0",

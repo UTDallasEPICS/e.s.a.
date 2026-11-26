@@ -1,4 +1,17 @@
 /**
+ * Purpose
+ * Provide the create project discord logic used by other parts of ESA.
+ *
+ * Inputs
+ * - Values passed by callers and any configuration or records imported here.
+ *
+ * Outputs
+ * - The values, types, or functions exported by this file.
+ *
+ * Pseudocode
+ * Load the dependencies → define the file’s rules or helpers → expose them for other files to use.
+ */
+/**
  * @file createProjectDiscord.ts
  *
  * This file contains the implementation of the `createProjectDiscord` function, which is responsible for creating a project category and associated text and voice channels in a Discord server.
@@ -32,30 +45,42 @@ import { ProjectRead } from '#server/services/projectService'
  * @throws {Error} If the GUILD_ID environment variable is not defined or if an error occurs while creating the category or channels.
  */
 const createProjectDiscord = async (project: ProjectRead) => {
+  // Use getClient to initialize client.
   const client = getClient()
+  // Define guildId for the steps below.
   const guildId = process.env.GUILD_ID
+  // Check whether !guildId before running this branch.
   if (!guildId) {
+    // Stop this operation and tell the caller why it cannot continue.
     throw new Error('GUILD_ID is not defined')
   }
   // Get the list of existing channels in the guild
   const guild: Guild = await client.guilds.fetch(guildId)
+  // Define existingChannels for the steps below.
   const existingChannels = guild.channels.cache
+  // Define projectName for the steps below.
   const projectName = project.name
 
+  // Use projectName.toLowerCase().replace to initialize formattedChannelName.
   const formattedChannelName = projectName.toLowerCase().replace(/\s+/g, '-')
 
   // Check if a role with the formatted name already exists
   const formattedRoleName = `${projectName} - Current`
+  // Use guild.roles.cache.find to initialize projectRole.
   let projectRole = guild.roles.cache.find((role) => role.name === formattedRoleName)
 
+  // Use guild.roles.cache.find to initialize adminRole.
   const adminRole = guild.roles.cache.find((r) => r.name === 'Professor/Faculty/Staff')
+  // Check whether !adminRole before running this branch.
   if (!adminRole) {
+    // Call console.error to run this step.
     console.error('Role "Professor/Faculty/Staff" not found')
     return
   }
 
   // If the role doesn't exist, create it
   if (!projectRole) {
+    // Update projectRole with the value on the right.
     projectRole = await guild.roles.create({
       name: formattedRoleName,
       permissions: [],
@@ -70,6 +95,7 @@ const createProjectDiscord = async (project: ProjectRead) => {
   // If the category doesn't exist, create it
   if (!projectCategory) {
     try {
+      // Update projectCategory with the value on the right.
       projectCategory = (await guild.channels.create({
         name: formattedChannelName,
         type: ChannelType.GuildCategory,
@@ -88,14 +114,17 @@ const createProjectDiscord = async (project: ProjectRead) => {
           },
         ],
       })) as CategoryChannel
+      // Call console.log to run this step.
       console.log(`Created category: ${formattedChannelName}`)
     } catch (error) {
+      // Call console.error to run this step.
       console.error(`Error creating category ${formattedChannelName}:`, error)
     }
   }
 
   // If category still doesn't exist (e.g., server hit 500 channel limit), skip channel creation
   if (!projectCategory) {
+    // Call console.warn to run this step.
     console.warn(
       `[DiscordBot] Skipping channel creation for ${formattedChannelName} because category is missing (possibly due to channel limit).`
     )
@@ -132,8 +161,10 @@ const createProjectDiscord = async (project: ProjectRead) => {
           },
         ],
       })
+      // Call console.log to run this step.
       console.log(`Created text channel: ${formattedChannelName}`)
     } catch (error) {
+      // Call console.error to run this step.
       console.error(`Error creating text channel ${formattedChannelName}:`, error)
     }
   }
@@ -168,8 +199,10 @@ const createProjectDiscord = async (project: ProjectRead) => {
           },
         ],
       })
+      // Call console.log to run this step.
       console.log(`Created voice channel: ${formattedChannelName}`)
     } catch (error) {
+      // Call console.error to run this step.
       console.error(`Error creating voice channel ${formattedChannelName}:`, error)
     }
   }
