@@ -1,3 +1,16 @@
+/**
+ * Purpose
+ * Provide the columns logic used by other parts of ESA.
+ *
+ * Inputs
+ * - Values passed by callers and any configuration or records imported here.
+ *
+ * Outputs
+ * - The values, types, or functions exported by this file.
+ *
+ * Pseudocode
+ * Load the dependencies → define the file’s rules or helpers → expose them for other files to use.
+ */
 // Builders for the two DataTable column shapes that repeat across every tab. Anything with a less
 // common mix of options stays a plain literal — a builder with an option per field would read worse
 // than the object it replaces.
@@ -11,6 +24,7 @@ export function textColumn<T extends Record<string, any>>(
   header: string,
   extra?: Partial<DataTableColumn<T>>
 ): DataTableColumn<T> {
+  // Pass { id: accessorKey, header, accessorKey, sortable: true, filter: { type: 'search' }, editable: { type back to the caller.
   return {
     id: accessorKey,
     header,
@@ -29,6 +43,7 @@ export function enumColumn<T extends Record<string, any>>(
   options: SelectOption<any>[],
   extra?: Partial<DataTableColumn<T>>
 ): DataTableColumn<T> {
+  // Pass { id: accessorKey, header, accessorKey, filter: { type: 'multiselect', options: options as { label:  back to the caller.
   return {
     id: accessorKey,
     header,

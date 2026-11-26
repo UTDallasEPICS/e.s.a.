@@ -1,3 +1,16 @@
+/**
+ * Purpose
+ * Provide the use staged changes logic used by other parts of ESA.
+ *
+ * Inputs
+ * - Values passed by callers and any configuration or records imported here.
+ *
+ * Outputs
+ * - The values, types, or functions exported by this file.
+ *
+ * Pseudocode
+ * Load the dependencies → define the file’s rules or helpers → expose them for other files to use.
+ */
 // Per-table staging store for the editing model in docs/design/ui.md §2.3.1.
 //
 // Every creation, edit, and deletion made in a DataTable — including the ones made inside a row's
@@ -71,9 +84,12 @@ export const STAGE_TINTS: Record<StageState, string> = {
   clean: '',
 }
 
+// Define NEW_PREFIX for the steps below.
 const NEW_PREFIX = 'new:'
 
+// Define the helper that will is new id.
 function isNewId(id: string) {
+  // Pass id.startsWith(NEW_PREFIX) back to the caller.
   return id.startsWith(NEW_PREFIX)
 }
 
@@ -83,7 +99,9 @@ export interface ChildGroups {
   deleted: ChildStage[]
 }
 
+// Define the helper that will is child dirty.
 function isChildDirty(child: ChildStage) {
+  // Pass child.isNew || child.deleted || Object.keys(child.fields).length > 0 back to the caller.
   return child.isNew || child.deleted || Object.keys(child.fields).length > 0
 }
 
@@ -93,28 +111,42 @@ function isChildDirty(child: ChildStage) {
  * still choose their own ordering — enrollments and memberships must delete before they create.
  */
 export function groupChildren(children?: ChildStage[]): ChildGroups {
+  // Define groups for the steps below.
   const groups: ChildGroups = { added: [], edited: [], deleted: [] }
+  // Repeat the following steps for each item in children ?? [].
   for (const child of children ?? []) {
+    // Check whether child.deleted before running this branch.
     if (child.deleted) {
+      // Check whether !child.isNew before running this branch.
       if (!child.isNew) groups.deleted.push(child)
     } else if (child.isNew) {
+      // Call groups.added.push to run this step.
       groups.added.push(child)
     } else if (Object.keys(child.fields).length) {
+      // Call groups.edited.push to run this step.
       groups.edited.push(child)
     }
   }
+  // Pass groups back to the caller.
   return groups
 }
 
+// Define the helper that will use staged changes.
 export function useStagedChanges() {
+  // Use reactive to initialize stages.
   const stages = reactive<Record<string, RowStage>>({})
+  // Define counter for the steps below.
   let counter = 0
 
+  // Define the helper that will next id.
   function nextId(kind: string) {
+    // Pass `${NEW_PREFIX}${kind}:${++counter}` back to the caller.
     return `${NEW_PREFIX}${kind}:${++counter}`
   }
 
+  // Define the helper that will stage for.
   function stageFor(id: string): RowStage {
+    // Pass (stages[id] ??= { isNew: isNewId(id), deleted: false, fields: {}, children: {} }) back to the caller.
     return (stages[id] ??= { isNew: isNewId(id), deleted: false, fields: {}, children: {} })
   }
 
@@ -124,21 +156,31 @@ export function useStagedChanges() {
    * either should stop reading as edited.
    */
   function isBlank(value: any) {
+    // Pass value == null || value === '' back to the caller.
     return value == null || value === ''
   }
 
+  // Define the helper that will is reverted.
   function isReverted(value: any, original: any) {
+    // Pass value === original || (isBlank(value) && isBlank(original)) back to the caller.
     return value === original || (isBlank(value) && isBlank(original))
   }
 
+  // Define the helper that will has row changes.
   function hasRowChanges(stage: RowStage) {
+    // Check whether stage.isNew || stage.deleted before running this branch.
     if (stage.isNew || stage.deleted) return true
+    // Check whether Object.keys(stage.fields).length before running this branch.
     if (Object.keys(stage.fields).length) return true
+    // Repeat the following steps for each item in Object.values(stage.children).
     for (const bucket of Object.values(stage.children)) {
+      // Repeat the following steps for each item in Object.values(bucket).
       for (const child of Object.values(bucket)) {
+        // Check whether isChildDirty(child) before running this branch.
         if (isChildDirty(child)) return true
       }
     }
+    // Pass false back to the caller.
     return false
   }
 
@@ -147,12 +189,18 @@ export function useStagedChanges() {
    * dropped, an edited or deleted one reverts to clean, keeping its cached original.
    */
   function clearChildren(stage: RowStage) {
+    // Repeat the following steps for each item in Object.values(stage.children).
     for (const bucket of Object.values(stage.children)) {
+      // Repeat the following steps for each item in Object.keys(bucket).
       for (const childId of Object.keys(bucket)) {
+        // Define child for the steps below.
         const child = bucket[childId]!
+        // Check whether child.isNew before running this branch.
         if (child.isNew) delete bucket[childId]
         else {
+          // Update child.deleted with the value on the right.
           child.deleted = false
+          // Update child.fields with the value on the right.
           child.fields = {}
         }
       }
@@ -164,8 +212,11 @@ export function useStagedChanges() {
 
   /** Stage a new row from a blank draft. Returns its temporary id. */
   function addRow(draft: Record<string, any>): string {
+    // Use nextId to initialize id.
     const id = nextId('row')
+    // Update stages[id] with the value on the right.
     stages[id] = { isNew: true, deleted: false, fields: { ...draft }, children: {} }
+    // Pass id back to the caller.
     return id
   }
 
@@ -178,11 +229,15 @@ export function useStagedChanges() {
   /** Mark each id for deletion. Staged-new rows are dropped instead, since there is nothing to
    *  delete server-side; use `undo` to unmark an existing row. */
   function markRowsDeleted(ids: string[]) {
+    // Repeat the following steps for each item in ids.
     for (const id of ids) {
+      // Check whether isNewId(id) before running this branch.
       if (isNewId(id)) {
+        // Call dropRow to run this step.
         dropRow(id)
         continue
       }
+      // Update stageFor(id).deleted with the value on the right.
       stageFor(id).deleted = true
     }
   }
@@ -194,22 +249,35 @@ export function useStagedChanges() {
    * child changes, so undoing the row must undo them for the row to actually turn clean.
    */
   function undoRow(id: string) {
+    // Define stage for the steps below.
     const stage = stages[id]
+    // Check whether !stage before running this branch.
     if (!stage) return
+    // Check whether stage.isNew before running this branch.
     if (stage.isNew) {
+      // Call dropRow to run this step.
       dropRow(id)
       return
     }
+    // Update stage.deleted with the value on the right.
     stage.deleted = false
+    // Update stage.fields with the value on the right.
     stage.fields = {}
+    // Call clearChildren to run this step.
     clearChildren(stage)
   }
 
+  // Define the helper that will row state.
   function rowState(id: string): StageState {
+    // Define stage for the steps below.
     const stage = stages[id]
+    // Check whether !stage before running this branch.
     if (!stage) return 'clean'
+    // Check whether stage.deleted before running this branch.
     if (stage.deleted) return 'deleted'
+    // Check whether stage.isNew before running this branch.
     if (stage.isNew) return 'new'
+    // Pass hasRowChanges(stage) ? 'edited' : 'clean' back to the caller.
     return hasRowChanges(stage) ? 'edited' : 'clean'
   }
 
@@ -219,7 +287,9 @@ export function useStagedChanges() {
    * cheap, and it keeps the cache current across a refetch.
    */
   function registerRow(id: string, record: Record<string, any>) {
+    // Check whether isNewId(id) before running this branch.
     if (isNewId(id)) return
+    // Update stageFor(id).original with the value on the right.
     stageFor(id).original = record
   }
 
@@ -230,19 +300,28 @@ export function useStagedChanges() {
    * the owning fetch, ahead of any render that could call `merge`, so the cache is always current.
    */
   function mergeRow<T extends Record<string, any>>(id: string): T {
+    // Define stage for the steps below.
     const stage = stages[id]
+    // Check whether !stage before running this branch.
     if (!stage) throw new Error(`rows.merge: row "${id}" was never registered`)
+    // Check whether stage.isNew before running this branch.
     if (stage.isNew) return stage.fields as T
+    // Check whether !Object.keys(stage.fields).length before running this branch.
     if (!Object.keys(stage.fields).length) return stage.original as T
+    // Pass { ...stage.original, ...stage.fields } as T back to the caller.
     return { ...stage.original, ...stage.fields } as T
   }
 
   /** Every staged-new row's temporary id and draft, in the order they were added. */
   function drafts(): { id: string; fields: Record<string, any> }[] {
+    // Define result for the steps below.
     const result: { id: string; fields: Record<string, any> }[] = []
+    // Repeat the following steps for each item in Object.entries(stages).
     for (const [id, stage] of Object.entries(stages)) {
+      // Check whether stage.isNew before running this branch.
       if (stage.isNew) result.push({ id, fields: stage.fields })
     }
+    // Pass result back to the caller.
     return result
   }
 
@@ -252,63 +331,89 @@ export function useStagedChanges() {
 
   /** The staged value for a field, falling back to the row's registered original. */
   function getValue(id: string, field: string) {
+    // Define stage for the steps below.
     const stage = stages[id]
+    // Check whether !stage before running this branch.
     if (!stage) return undefined
+    // Check whether stage.isNew before running this branch.
     if (stage.isNew) return stage.fields[field]
+    // Pass field in stage.fields ? stage.fields[field] : stage.original?.[field] back to the caller.
     return field in stage.fields ? stage.fields[field] : stage.original?.[field]
   }
 
   /** Stage a field edit. Setting a value back to the registered original clears the edit. */
   function setValue(id: string, field: string, value: any) {
+    // Use stageFor to initialize stage.
     const stage = stageFor(id)
+    // Check whether stage.isNew before running this branch.
     if (stage.isNew) {
+      // Update stage.fields[field] with the value on the right.
       stage.fields[field] = value
       return
     }
+    // Define original for the steps below.
     const original = stage.original?.[field]
+    // Check whether isReverted(value, original) before running this branch.
     if (isReverted(value, original)) {
       delete stage.fields[field]
     } else {
+      // Update stage.fields[field] with the value on the right.
       stage.fields[field] = value
     }
   }
 
+  // Define the helper that will is field edited.
   function isFieldEdited(id: string, field: string) {
+    // Define stage for the steps below.
     const stage = stages[id]
+    // Pass !!stage && !stage.isNew && field in stage.fields back to the caller.
     return !!stage && !stage.isNew && field in stage.fields
   }
 
   // ------------------------------------------------------------ children
 
   function childrenFor(rowId: string, collection: string): Record<string, ChildStage> {
+    // Use stageFor to initialize stage.
     const stage = stageFor(rowId)
+    // Pass (stage.children[collection] ??= {}) back to the caller.
     return (stage.children[collection] ??= {})
   }
 
+  // Define the helper that will child stage.
   function childStage(rowId: string, collection: string, childId: string): ChildStage | undefined {
+    // Pass stages[rowId]?.children[collection]?.[childId] back to the caller.
     return stages[rowId]?.children[collection]?.[childId]
   }
 
   /** Stage a new minor record under a row. Returns its temporary id. */
   function addChild(rowId: string, collection: string, draft: Record<string, any>): string {
+    // Use nextId to initialize id.
     const id = nextId(collection)
+    // Update childrenFor(rowId, collection)[id] with the value on the right.
     childrenFor(rowId, collection)[id] = { id, isNew: true, deleted: false, fields: { ...draft } }
+    // Pass id back to the caller.
     return id
   }
 
   /** Mark an existing child for deletion, or drop a staged-new one, since there is nothing to
    *  delete server-side; use `undo` to unmark it. */
   function markChildDeleted(rowId: string, collection: string, childId: string) {
+    // Use childrenFor to initialize bucket.
     const bucket = childrenFor(rowId, collection)
+    // Define existing for the steps below.
     const existing = bucket[childId]
+    // Check whether existing?.isNew before running this branch.
     if (existing?.isNew) {
       delete bucket[childId]
       return
     }
+    // Check whether existing before running this branch.
     if (existing) {
+      // Update existing.deleted with the value on the right.
       existing.deleted = true
       return
     }
+    // Update bucket[childId] with the value on the right.
     bucket[childId] = { id: childId, isNew: false, deleted: true, fields: {} }
   }
 
@@ -318,12 +423,17 @@ export function useStagedChanges() {
    * original.
    */
   function undoChild(rowId: string, collection: string, childId: string) {
+    // Use childrenFor to initialize bucket.
     const bucket = childrenFor(rowId, collection)
+    // Define existing for the steps below.
     const existing = bucket[childId]
+    // Check whether existing?.isNew before running this branch.
     if (existing?.isNew) {
       delete bucket[childId]
     } else if (existing) {
+      // Update existing.deleted with the value on the right.
       existing.deleted = false
+      // Update existing.fields with the value on the right.
       existing.fields = {}
     }
   }
@@ -343,30 +453,49 @@ export function useStagedChanges() {
     records: C[],
     key: (record: C) => string
   ) {
+    // Check whether isNewId(rowId) before running this branch.
     if (isNewId(rowId)) return
+    // Use stageFor to initialize stage.
     const stage = stageFor(rowId)
+    // Define oldBucket for the steps below.
     const oldBucket = stage.children[collection] ?? {}
+    // Define newBucket for the steps below.
     const newBucket: Record<string, ChildStage> = {}
+    // Repeat the following steps for each item in records.
     for (const record of records) {
+      // Use key to initialize id.
       const id = key(record)
+      // Define existing for the steps below.
       const existing = oldBucket[id]
+      // Check whether existing before running this branch.
       if (existing) {
+        // Update existing.original with the value on the right.
         existing.original = record
+        // Update newBucket[id] with the value on the right.
         newBucket[id] = existing
       } else {
+        // Update newBucket[id] with the value on the right.
         newBucket[id] = { id, isNew: false, deleted: false, fields: {}, original: record }
       }
     }
+    // Repeat the following steps for each item in Object.entries(oldBucket).
     for (const [id, childStage] of Object.entries(oldBucket)) {
+      // Check whether childStage.isNew before running this branch.
       if (childStage.isNew) newBucket[id] = childStage
     }
+    // Update stage.children[collection] with the value on the right.
     stage.children[collection] = newBucket
   }
 
+  // Define the helper that will get child value.
   function getChildValue(rowId: string, collection: string, childId: string, field: string) {
+    // Use childStage to initialize stage.
     const stage = childStage(rowId, collection, childId)
+    // Check whether !stage before running this branch.
     if (!stage) return undefined
+    // Check whether stage.isNew before running this branch.
     if (stage.isNew) return stage.fields[field]
+    // Pass field in stage.fields ? stage.fields[field] : stage.original?.[field] back to the caller.
     return field in stage.fields ? stage.fields[field] : stage.original?.[field]
   }
 
@@ -382,35 +511,51 @@ export function useStagedChanges() {
     field: string,
     value: any
   ) {
+    // Use childrenFor to initialize bucket.
     const bucket = childrenFor(rowId, collection)
+    // Define stage for the steps below.
     const stage = (bucket[childId] ??= {
       id: childId,
       isNew: isNewId(childId),
       deleted: false,
       fields: {},
     })
+    // Check whether stage.isNew before running this branch.
     if (stage.isNew) {
+      // Update stage.fields[field] with the value on the right.
       stage.fields[field] = value
       return
     }
+    // Define original for the steps below.
     const original = stage.original?.[field]
+    // Check whether isReverted(value, original) before running this branch.
     if (isReverted(value, original)) {
       delete stage.fields[field]
     } else {
+      // Update stage.fields[field] with the value on the right.
       stage.fields[field] = value
     }
   }
 
+  // Define the helper that will is child field edited.
   function isChildFieldEdited(rowId: string, collection: string, childId: string, field: string) {
+    // Use childStage to initialize stage.
     const stage = childStage(rowId, collection, childId)
+    // Pass !!stage && !stage.isNew && field in stage.fields back to the caller.
     return !!stage && !stage.isNew && field in stage.fields
   }
 
+  // Define the helper that will child state.
   function childState(rowId: string, collection: string, childId: string): StageState {
+    // Use childStage to initialize stage.
     const stage = childStage(rowId, collection, childId)
+    // Check whether !stage before running this branch.
     if (!stage) return 'clean'
+    // Check whether stage.deleted before running this branch.
     if (stage.deleted) return 'deleted'
+    // Check whether stage.isNew before running this branch.
     if (stage.isNew) return 'new'
+    // Pass Object.keys(stage.fields).length ? 'edited' : 'clean' back to the caller.
     return Object.keys(stage.fields).length ? 'edited' : 'clean'
   }
 
@@ -425,10 +570,15 @@ export function useStagedChanges() {
     rowId: string,
     collection: string
   ): MergedChild<C>[] {
+    // Define bucket for the steps below.
     const bucket = stages[rowId]?.children[collection] ?? {}
+    // Define merged for the steps below.
     const merged: MergedChild<C>[] = []
+    // Repeat the following steps for each item in Object.values(bucket).
     for (const stage of Object.values(bucket)) {
+      // Check whether stage.isNew before running this branch.
       if (stage.isNew) continue
+      // Call merged.push to run this step.
       merged.push({
         id: stage.id,
         record: (Object.keys(stage.fields).length
@@ -439,8 +589,11 @@ export function useStagedChanges() {
         deleted: stage.deleted,
       })
     }
+    // Repeat the following steps for each item in Object.values(bucket).
     for (const stage of Object.values(bucket)) {
+      // Check whether !stage.isNew before running this branch.
       if (!stage.isNew) continue
+      // Call merged.push to run this step.
       merged.push({
         id: stage.id,
         record: stage.fields as C,
@@ -449,6 +602,7 @@ export function useStagedChanges() {
         deleted: false,
       })
     }
+    // Pass merged back to the caller.
     return merged
   }
 
@@ -463,39 +617,59 @@ export function useStagedChanges() {
    * every field reading as undefined until the next refresh.
    */
   function reset() {
+    // Repeat the following steps for each item in Object.keys(stages).
     for (const id of Object.keys(stages)) {
+      // Define stage for the steps below.
       const stage = stages[id]!
+      // Check whether stage.isNew before running this branch.
       if (stage.isNew) {
         delete stages[id]
         continue
       }
+      // Update stage.deleted with the value on the right.
       stage.deleted = false
+      // Update stage.fields with the value on the right.
       stage.fields = {}
+      // Call clearChildren to run this step.
       clearChildren(stage)
     }
   }
 
+  // Define the helper that will to record.
   function toRecord(id: string, stage: RowStage): StagedRecord {
+    // Define children for the steps below.
     const children: Record<string, ChildStage[]> = {}
+    // Repeat the following steps for each item in Object.entries(stage.children).
     for (const [collection, bucket] of Object.entries(stage.children)) {
+      // Use Object.values(bucket).filter to initialize list.
       const list = Object.values(bucket).filter(isChildDirty)
+      // Check whether list.length before running this branch.
       if (list.length) children[collection] = list
     }
+    // Pass { id, fields: { ...stage.fields }, children } back to the caller.
     return { id, fields: { ...stage.fields }, children }
   }
 
+  // Define the helper that will payload.
   function payload(): StagedPayload {
+    // Define created for the steps below.
     const created: StagedRecord[] = []
+    // Define updated for the steps below.
     const updated: StagedRecord[] = []
+    // Define deleted for the steps below.
     const deleted: string[] = []
+    // Repeat the following steps for each item in Object.entries(stages).
     for (const [id, stage] of Object.entries(stages)) {
+      // Check whether stage.isNew before running this branch.
       if (stage.isNew) created.push(toRecord(id, stage))
       else if (stage.deleted) deleted.push(id)
       else if (hasRowChanges(stage)) updated.push(toRecord(id, stage))
     }
+    // Pass { created, updated, deleted } back to the caller.
     return { created, updated, deleted }
   }
 
+  // Pass { isDirty, reset, payload, rows: { add: addRow, markDeleted: markRowsDeleted, undo: undoRow, state:  back to the caller.
   return {
     isDirty,
     reset,

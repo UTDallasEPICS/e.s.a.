@@ -1,7 +1,27 @@
 <script setup lang="ts">
-  import { computed, ref } from 'vue'
+  /**
+   * Purpose
+   * Show enrollment and project totals, and let users ask questions about ESA data.
+   *
+   * Inputs
+   * - Selected semester, roster records, pinned items, and the user’s search text.
+   *
+   * Outputs
+   * - Dashboard cards, project rows, and AI results or a message explaining why a request failed.
+   *
+   * Pseudocode
+   * Read the selected semester → count matching records → when a question is submitted, request a report → render the result.
+   */
+  import {
+    latestProjectSemester,
+    projectStatusForSemester as getDashboardProjectStatusForSemester,
+  } from '../projectSemesterStatus'
+  import { printAIResult } from './printAIResult'
+  import { computed, nextTick, onMounted, ref, watch } from 'vue'
   import {
     students,
+    partners,
+    choices,
     projects,
     semesters,
     teams,
@@ -9,6 +29,9 @@
     getPartnerById,
     getSemesterLabel,
     getClassStanding,
+    getStudentCourse,
+    getStudentForSemester,
+    getOfficialProjectRoster,
   } from '../data'
   import StatusBadge from './StatusBadge.vue'
   import SankeyChart from './SankeyChart.vue'
@@ -22,7 +45,7 @@
     normalizeV1Response,
     type LegacyAIResponse,
     type V1Presentation,
-  } from './aiResultView'
+  } from './aiResultPresentation'
 
   import { Chart } from 'vue-chartjs'
   import {
@@ -51,6 +74,7 @@
     type ChartType as ChartJsType,
   } from 'chart.js'
 
+  // Call ChartJS.register to run this step.
   ChartJS.register(
     Title,
     Tooltip,
@@ -91,23 +115,186 @@
   // Infer the project type directly from the existing project data.
   type Project = (typeof projects)[number]
 
-  const props = defineProps<{ pinnedItems: PinnedItem[] }>()
+  // Use defineProps to initialize props.
+  const props = defineProps<{ pinnedItems: PinnedItem[]; assistantOnly?: boolean }>()
+  // Use defineEmits to initialize emit.
   const emit = defineEmits<{
     navigate: [page: string]
     openProject: [projectId: string, semesterId: string]
-    openStudent: [studentId: string]
+    openStudent: [studentId: string, semesterId?: string]
     openInsight: [insightId: string]
     togglePin: [item: PinnedItem]
   }>()
+  // Use useState to initialize selectedSemester.
   const selectedSemester = useState<string>('epics-selected-semester', () => 'FA26')
 
+  // Store printedResult as state so Vue reacts when it changes.
+  const printedResult = ref<HTMLElement | null>(null)
+  // Store printing as state so Vue reacts when it changes.
+  const printing = ref(false)
+  // Store printError as state so Vue reacts when it changes.
+  const printError = ref('')
+  // Store lastAIQuestion as state so Vue reacts when it changes.
+  const lastAIQuestion = ref('')
+  // Store resultQuestion as state so Vue reacts when it changes.
+  const resultQuestion = ref('')
+  // Define the helper that will print result.
+  async function printResult() {
+    // Check whether !printedResult.value before running this branch.
+    if (!printedResult.value) return
+    // Update printing.value with the value on the right.
+    printing.value = true
+    // Update printError.value with the value on the right.
+    printError.value = ''
+    try {
+      await printAIResult(printedResult.value, resultQuestion.value)
+    } catch {
+      // Update printError.value with the value on the right.
+      printError.value = 'Print preview could not open. Please try again.'
+    } finally {
+      // Update printing.value with the value on the right.
+      printing.value = false
+    }
+  }
+  // Store conversationId as state so Vue reacts when it changes.
+  const conversationId = ref<string | undefined>()
+  // Store followUpText as state so Vue reacts when it changes.
+  const followUpText = ref('')
+  // Store turnHistory as state so Vue reacts when it changes.
+  const turnHistory = ref<Array<{ question: string; status: string; explanation: string }>>([])
+  // Define the helper that will ask suggestion.
+  function askSuggestion(suggestion: string) {
+    // Update followUpText.value with the value on the right.
+    followUpText.value = suggestion
+    // Call askFollowUp to run this step.
+    askFollowUp()
+  }
+  // Define the helper that will ask follow up.
+  function askFollowUp() {
+    // Check whether !followUpText.value.trim() || aiLoading.value before running this branch.
+    if (!followUpText.value.trim() || aiLoading.value) return
+    // Update searchQuery.value with the value on the right.
+    searchQuery.value = followUpText.value.trim()
+    // Update followUpText.value with the value on the right.
+    followUpText.value = ''
+    void runAISearch()
+  }
+  // Define the helper that will load more results.
+  function loadMoreResults() {
+    // Update followUpText.value with the value on the right.
+    followUpText.value = 'show the next page'
+    // Call askFollowUp to run this step.
+    askFollowUp()
+  }
+  // Store searchQuery as state so Vue reacts when it changes.
   const searchQuery = ref('')
-  const aiMode = ref(false)
+  // Store aiMode as state so Vue reacts when it changes.
+  const aiMode = ref(true)
+  // Store aiLoading as state so Vue reacts when it changes.
   const aiLoading = ref(false)
+  // Store slowSearch as state so Vue reacts when it changes.
+  const slowSearch = ref(false)
+  // Define slowSearchTimer for the steps below.
+  let slowSearchTimer: ReturnType<typeof setTimeout> | undefined
+  // Define aiController for the steps below.
+  let aiController: AbortController | undefined
+  // Define the helper that will toggle aimode.
+  function toggleAIMode() {
+    // Define question for the steps below.
+    const question = searchQuery.value
+    // Call clearAISearch to run this step.
+    clearAISearch()
+    // Update aiMode.value with the value on the right.
+    aiMode.value = !aiMode.value
+    // Update searchQuery.value with the value on the right.
+    searchQuery.value = question
+  }
+  // Define the helper that will clear aisearch.
+  function clearAISearch() {
+    // Check whether slowSearchTimer before running this branch.
+    if (slowSearchTimer) clearTimeout(slowSearchTimer)
+    // Update slowSearch.value with the value on the right.
+    slowSearch.value = false
+    // Call aiController?.abort to run this step.
+    aiController?.abort()
+    // Update aiController with the value on the right.
+    aiController = undefined
+    // Update aiLoading.value with the value on the right.
+    aiLoading.value = false
+    // Update conversationId.value with the value on the right.
+    conversationId.value = undefined
+    // Update followUpText.value with the value on the right.
+    followUpText.value = ''
+    // Update turnHistory.value with the value on the right.
+    turnHistory.value = []
+    // Update lastAIQuestion.value with the value on the right.
+    lastAIQuestion.value = ''
+    // Update resultQuestion.value with the value on the right.
+    resultQuestion.value = ''
+    // Update printError.value with the value on the right.
+    printError.value = ''
+    // Update searchQuery.value with the value on the right.
+    searchQuery.value = ''
+    // Update needsSignIn.value with the value on the right.
+    needsSignIn.value = false
+    // Update aiError.value with the value on the right.
+    aiError.value = ''
+    // Update aiV1Response.value with the value on the right.
+    aiV1Response.value = null
+    // Update aiResults.value with the value on the right.
+    aiResults.value = []
+    // Update aiProjects.value with the value on the right.
+    aiProjects.value = []
+    // Update aiResultOperation.value with the value on the right.
+    aiResultOperation.value = ''
+    // Update aiRequestedChartType.value with the value on the right.
+    aiRequestedChartType.value = undefined
+    // Update aiAnalyticsPlan.value with the value on the right.
+    aiAnalyticsPlan.value = null
+    // Update aiAnalyticsRows.value with the value on the right.
+    aiAnalyticsRows.value = []
+    // Update aiAnalyticsSummary.value with the value on the right.
+    aiAnalyticsSummary.value = null
+    // Update aiStudentCount.value with the value on the right.
+    aiStudentCount.value = null
+    // Update aiResultSemester.value with the value on the right.
+    aiResultSemester.value = ''
+  }
+  // Store aiError as state so Vue reacts when it changes.
   const aiError = ref('')
+  // Store needsSignIn as state so Vue reacts when it changes.
+  const needsSignIn = ref(false)
+  // Define signInDraftKey for the steps below.
+  const signInDraftKey = 'esa-ai-sign-in-draft'
+
+  // Define the helper that will save sign in draft.
+  function saveSignInDraft() {
+    // Call sessionStorage.setItem to run this step.
+    sessionStorage.setItem(signInDraftKey, searchQuery.value)
+  }
+
+  // Call onMounted to run this step.
+  onMounted(() => {
+    // Check whether props.assistantOnly before running this branch.
+    if (props.assistantOnly) return
+    // Use sessionStorage.getItem to initialize draft.
+    const draft = sessionStorage.getItem(signInDraftKey)
+    // Check whether draft === null before running this branch.
+    if (draft === null) return
+    // Call sessionStorage.removeItem to run this step.
+    sessionStorage.removeItem(signInDraftKey)
+    // Update aiMode.value with the value on the right.
+    aiMode.value = true
+    // Update searchQuery.value with the value on the right.
+    searchQuery.value = draft
+  })
+  // Store aiV1Response as state so Vue reacts when it changes.
   const aiV1Response = ref<V1Presentation | null>(null)
+  // Store aiRequestedChartType as state so Vue reacts when it changes.
   const aiRequestedChartType = ref<AIChartType | undefined>()
+  // Store aiResults as state so Vue reacts when it changes.
   const aiResults = ref<{ label: string; count: number }[]>([])
+  // Store aiAnalyticsSource as state so Vue reacts when it changes.
   const aiAnalyticsSource = ref('projects')
   type AnalyticsMetric = {
     function: 'count' | 'countDistinct'
@@ -129,11 +316,16 @@
     kind: 'dimension' | 'metric'
   }
 
+  // Store aiAnalyticsPlan as state so Vue reacts when it changes.
   const aiAnalyticsPlan = ref<AnalyticsPlanView | null>(null)
+  // Store aiAnalyticsRows as state so Vue reacts when it changes.
   const aiAnalyticsRows = ref<AnalyticsRow[]>([])
+  // Store aiAnalyticsSummary as state so Vue reacts when it changes.
   const aiAnalyticsSummary = ref<{ label: string; value: number } | null>(null)
 
+  // Recalculate aiAnalyticsLabel when the values it reads change.
   const aiAnalyticsLabel = computed(() => {
+    // Define labels for the steps below.
     const labels: Record<string, string> = {
       projects: 'Projects',
       semesters: 'Semesters',
@@ -141,17 +333,26 @@
       teams: 'Teams',
     }
 
+    // Pass labels[aiAnalyticsSource.value] ?? 'Records' back to the caller.
     return labels[aiAnalyticsSource.value] ?? 'Records'
   })
+  // Recalculate aiAnalyticsView when the values it reads change.
   const aiAnalyticsView = computed(() => {
+    // Define plan for the steps below.
     const plan = aiAnalyticsPlan.value
+    // Check whether !plan before running this branch.
     if (!plan) return 'empty'
+    // Pass legacyAnalyticsView(plan.dimensions.length, plan.metrics.length, plan.chartType) back to the caller.
     return legacyAnalyticsView(plan.dimensions.length, plan.metrics.length, plan.chartType)
   })
+  // Recalculate aiAnalyticsColumns when the values it reads change.
   const aiAnalyticsColumns = computed<AnalyticsColumn[]>(() => {
+    // Define plan for the steps below.
     const plan = aiAnalyticsPlan.value
+    // Check whether !plan before running this branch.
     if (!plan) return []
 
+    // Pass [ ...plan.dimensions.map((field) => ({ key: field, label: analyticsFieldLabel(field), field, kind: ' back to the caller.
     return [
       ...plan.dimensions.map((field) => ({
         key: field,
@@ -167,7 +368,9 @@
       })),
     ]
   })
+  // Define chartPalette for the steps below.
   const chartPalette = ['#075b91', '#0f766e', '#d97706', '#7c3aed', '#dc2626', '#0891b2', '#65a30d']
+  // Recalculate aiAnalyticsChartType when the values it reads change.
   const aiAnalyticsChartType = computed<AIChartType>(() =>
     aiAnalyticsView.value === 'table' || aiAnalyticsView.value === 'summary'
       ? 'bar'
@@ -175,21 +378,29 @@
         ? 'horizontalBar'
         : (aiAnalyticsView.value as AIChartType)
   )
+  // Recalculate aiAnalyticsChartRenderType when the values it reads change.
   const aiAnalyticsChartRenderType = computed<ChartJsType>(() =>
     chartRenderType(aiAnalyticsChartType.value)
   )
+  // Recalculate aiAnalyticsChartData when the values it reads change.
   const aiAnalyticsChartData = computed(() => {
+    // Define plan for the steps below.
     const plan = aiAnalyticsPlan.value
+    // Define dimension for the steps below.
     const dimension = plan?.dimensions[0]
+    // Use aiAnalyticsRows.value.map to initialize labels.
     const labels = aiAnalyticsRows.value.map((row) =>
       formatAnalyticsValue(dimension ?? '', row[dimension ?? ''])
     )
+    // Use (plan?.metrics ?? []).map to initialize series.
     const series = (plan?.metrics ?? []).map((metric) => ({
       label: analyticsMetricLabel(metric),
       values: aiAnalyticsRows.value.map((row) => Number(row[metric.alias] ?? 0)),
     }))
+    // Pass buildAIChartSeriesData(labels, series, aiAnalyticsChartType.value) back to the caller.
     return buildAIChartSeriesData(labels, series, aiAnalyticsChartType.value)
   })
+  // Recalculate aiAnalyticsChartStyle when the values it reads change.
   const aiAnalyticsChartStyle = computed(() => ({
     position: 'relative',
     width: '100%',
@@ -197,6 +408,7 @@
     height: `${Math.min(520, Math.max(240, aiAnalyticsRows.value.length * 42 + 48))}px`,
     overflow: 'hidden',
   }))
+  // Recalculate aiAnalyticsChartOptions when the values it reads change.
   const aiAnalyticsChartOptions = computed(() =>
     buildAIChartOptions(
       aiAnalyticsChartType.value,
@@ -204,8 +416,11 @@
       aiAnalyticsPlan.value?.metrics.length ?? 1
     )
   )
+  // Store aiResultSemester as state so Vue reacts when it changes.
   const aiResultSemester = ref('')
+  // Store aiStudentCount as state so Vue reacts when it changes.
   const aiStudentCount = ref<number | null>(null)
+  // Store aiResultOperation as state so Vue reacts when it changes.
   const aiResultOperation = ref('')
   type AIProject = {
     id: string
@@ -215,14 +430,22 @@
     status: string
   }
 
+  // Store aiProjects as state so Vue reacts when it changes.
   const aiProjects = ref<AIProject[]>([])
 
+  // Recalculate aiResultsChart when the values it reads change.
   const aiResultsChart = computed(() =>
     buildLegacyEnrollmentChart(aiResults.value, aiRequestedChartType.value)
   )
+  // Recalculate aiResultsChartType when the values it reads change.
   const aiResultsChartType = computed<AIChartType>(() => aiResultsChart.value?.type ?? 'bar')
+  // Recalculate aiResultsChartSupported when the values it reads change.
   const aiResultsChartSupported = computed(() => aiResultsChart.value !== undefined)
-  const aiResultsChartRenderType = computed<ChartJsType>(() => chartRenderType(aiResultsChartType.value))
+  // Recalculate aiResultsChartRenderType when the values it reads change.
+  const aiResultsChartRenderType = computed<ChartJsType>(() =>
+    chartRenderType(aiResultsChartType.value)
+  )
+  // Recalculate aiResultsChartData when the values it reads change.
   const aiResultsChartData = computed(() =>
     buildAIChartData(
       aiResultsChart.value?.labels ?? [],
@@ -231,24 +454,131 @@
       'Students'
     )
   )
+  // Recalculate aiResultsChartOptions when the values it reads change.
   const aiResultsChartOptions = computed(() =>
     buildAIChartOptions(aiResultsChartType.value, aiResultsChartData.value.labels ?? [])
   )
 
-  const aiV1ChartType = computed<AIChartType>(() => aiV1Response.value?.chart?.type ?? 'bar')
+  // Define the helper that will content href.
+  function contentHref(reference: { type: string; id: string; semesterId?: string; url?: string }) {
+    // Check whether reference.type === 'external' before running this branch.
+    if (reference.type === 'external') return reference.url ?? '#'
+    // Pass `/database-redesign?${reference.type}=${encodeURIComponent(reference.id)}${reference.semesterId ? `& back to the caller.
+    return `/database-redesign?${reference.type}=${encodeURIComponent(reference.id)}${reference.semesterId ? `&semester=${encodeURIComponent(reference.semesterId)}` : ''}`
+  }
+  // Define the helper that will content references.
+  function contentReferences(
+    row: NonNullable<V1Presentation['result']>['rows'][number],
+    field: string
+  ) {
+    // Pass row.references?.filter((reference) => reference.field === field) ?? [] back to the caller.
+    return row.references?.filter((reference) => reference.field === field) ?? []
+  }
+  // Store customXLabel as state so Vue reacts when it changes.
+  const customXLabel = ref('')
+  // Store customYLabel as state so Vue reacts when it changes.
+  const customYLabel = ref('')
+  // Run the callback when the watched values change.
+  watch(aiV1Response, (result) => {
+    // Update customXLabel.value with the value on the right.
+    customXLabel.value = result?.axisLabels?.x ?? ''
+    // Update customYLabel.value with the value on the right.
+    customYLabel.value = result?.axisLabels?.y ?? ''
+  })
+  // Recalculate aiV1ChartType when the values it reads change.
+  const aiV1ChartType = computed<AIChartType>(
+    () => aiV1Response.value?.plot?.type ?? aiV1Response.value?.chart?.type ?? 'bar'
+  )
+  // Recalculate aiV1ChartRenderType when the values it reads change.
   const aiV1ChartRenderType = computed<ChartJsType>(() => chartRenderType(aiV1ChartType.value))
+  // Recalculate aiV1ChartData when the values it reads change.
   const aiV1ChartData = computed(() => {
+    // Define plot for the steps below.
+    const plot = aiV1Response.value?.plot
+    // Check whether plot before running this branch.
+    if (plot)
+      // Pass { datasets: plot.points.map((point, index) => ({ label: point.label, data: [point], backgroundColor: back to the caller.
+      return {
+        datasets: plot.points.map((point, index) => ({
+          label: point.label,
+          data: [point],
+          backgroundColor: `hsl(${(index * 137.5) % 360} 55% 45%)`,
+        })),
+      } as ChartData<ChartJsType>
+    // Define chart for the steps below.
     const chart = aiV1Response.value?.chart
+    // Pass buildAIChartSeriesData(chart?.labels ?? [], chart?.series ?? [], aiV1ChartType.value) back to the caller.
     return buildAIChartSeriesData(chart?.labels ?? [], chart?.series ?? [], aiV1ChartType.value)
   })
-  const aiV1ChartOptions = computed(() =>
-    buildAIChartOptions(
+  // Recalculate aiV1ChartOptions when the values it reads change.
+  const aiV1ChartOptions = computed(() => {
+    // Define response for the steps below.
+    const response = aiV1Response.value
+    // Check whether response?.plot before running this branch.
+    if (response?.plot)
+      // Pass { responsive: true, maintainAspectRatio: false, scales: { x: { min: response.axisLabels?.xMin, max:  back to the caller.
+      return {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: {
+            min: response.axisLabels?.xMin,
+            max: response.axisLabels?.xMax,
+            title: { display: true, text: customXLabel.value || response.plot.xLabel },
+          },
+          y: {
+            min: response.axisLabels?.yMin,
+            max: response.axisLabels?.yMax,
+            title: { display: true, text: customYLabel.value || response.plot.yLabel },
+          },
+        },
+        plugins: { legend: { display: false } },
+      } as ChartOptions<ChartJsType>
+    // Define options for the steps below.
+    const options = buildAIChartOptions(
       aiV1ChartType.value,
       aiV1ChartData.value.labels ?? [],
-      aiV1Response.value?.chart?.series.length ?? 1
-    )
-  )
+      response?.chart?.series.length ?? 1
+    ) as any
+    // Check whether options.scales before running this branch.
+    if (options.scales) {
+      // Use response?.result?.columns.find to initialize dimension.
+      const dimension = response?.result?.columns.find((column) => column.role === 'dimension')
+      // Use response?.result?.columns.find to initialize metric.
+      const metric = response?.result?.columns.find((column) => column.role === 'metric')
+      // Define horizontal for the steps below.
+      const horizontal = aiV1ChartType.value === 'horizontalBar'
+      // Define xDefault for the steps below.
+      const xDefault = horizontal ? metric?.label : dimension?.label
+      // Define yDefault for the steps below.
+      const yDefault = horizontal ? dimension?.label : metric?.label
+      // Update options.scales.x with the value on the right.
+      options.scales.x = {
+        ...options.scales.x,
+        title: { display: true, text: customXLabel.value || xDefault || '' },
+      }
+      // Update options.scales.y with the value on the right.
+      options.scales.y = {
+        ...options.scales.y,
+        min: response?.axisLabels?.yMin,
+        max: response?.axisLabels?.yMax,
+        title: { display: true, text: customYLabel.value || yDefault || '' },
+      }
+      // Check whether horizontal before running this branch.
+      if (horizontal)
+        // Update options.scales.x with the value on the right.
+        options.scales.x = {
+          ...options.scales.x,
+          min: response?.axisLabels?.xMin,
+          max: response?.axisLabels?.xMax,
+        }
+    }
+    // Pass options back to the caller.
+    return options
+  })
+  // Recalculate aiV1StatusLabel when the values it reads change.
   const aiV1StatusLabel = computed(() => {
+    // Define labels for the steps below.
     const labels: Record<string, string> = {
       answer: 'Answer',
       no_data: 'No matching records',
@@ -257,51 +587,61 @@
       unsupported_capability: 'Unsupported request',
       execution_error: 'Search error',
     }
+    // Pass labels[aiV1Response.value?.status ?? ''] ?? 'AI results' back to the caller.
     return labels[aiV1Response.value?.status ?? ''] ?? 'AI results'
   })
 
+  // Define the helper that will chart render type.
   function chartRenderType(type: AIChartType): ChartJsType {
+    // Check whether type === 'area' before running this branch.
     if (type === 'area') return 'line'
+    // Check whether type === 'horizontalBar' || type === 'stackedBar' before running this branch.
     if (type === 'horizontalBar' || type === 'stackedBar') return 'bar'
+    // Check whether type === 'table' || type === 'sankey' before running this branch.
     if (type === 'table' || type === 'sankey') return 'bar'
+    // Pass type back to the caller.
     return type
   }
 
+  // Define the helper that will build aichart data.
   function buildAIChartData(
     labels: string[],
     values: number[],
     type: AIChartType,
     label: string
   ): ChartData<ChartJsType> {
+    // Pass buildAIChartSeriesData(labels, [{ label, values }], type) back to the caller.
     return buildAIChartSeriesData(labels, [{ label, values }], type)
   }
 
+  // Define the helper that will build aichart series data.
   function buildAIChartSeriesData(
     labels: string[],
     series: Array<{ label: string; values: number[] }>,
     type: AIChartType
   ): ChartData<ChartJsType> {
+    // Use ['pie', 'doughnut', 'polarArea'].includes to initialize isCircular.
     const isCircular = ['pie', 'doughnut', 'polarArea'].includes(type)
+    // Use series.map to initialize datasets.
     const datasets = series.map(({ label, values }, seriesIndex) => {
+      // Define data for the steps below.
       const data =
         type === 'scatter' || type === 'bubble'
           ? values.map((value, index) => ({
-            x: index,
-            y: value,
-            ...(type === 'bubble'
-              ? { r: Math.max(4, Math.min(24, Math.sqrt(Math.abs(value)) * 3)) }
-              : {}),
-          }))
+              x: index,
+              y: value,
+              ...(type === 'bubble'
+                ? { r: Math.max(4, Math.min(24, Math.sqrt(Math.abs(value)) * 3)) }
+                : {}),
+            }))
           : values
+      // Define color for the steps below.
       const color = chartPalette[seriesIndex % chartPalette.length] ?? '#075b91'
+      // Pass { label, data, backgroundColor: isCircular ? chartPalette : type === 'area' ? `${color}33` : color,  back to the caller.
       return {
         label,
         data,
-        backgroundColor: isCircular
-          ? chartPalette
-          : type === 'area'
-            ? `${color}33`
-            : color,
+        backgroundColor: isCircular ? chartPalette : type === 'area' ? `${color}33` : color,
         borderColor: isCircular ? '#ffffff' : color,
         borderWidth: isCircular ? 2 : 1,
         borderRadius: ['bar', 'horizontalBar', 'stackedBar'].includes(type) ? 10 : undefined,
@@ -313,18 +653,23 @@
         stack: type === 'stackedBar' ? 'stack' : undefined,
       }
     })
+    // Pass { labels, datasets } as unknown as ChartData<ChartJsType> back to the caller.
     return { labels, datasets } as unknown as ChartData<ChartJsType>
   }
 
+  // Define the helper that will build aichart options.
   function buildAIChartOptions(
     type: AIChartType,
     labels: string[],
     seriesCount = 1
   ): ChartOptions<ChartJsType> {
+    // Use chartRenderType to initialize renderType.
     const renderType = chartRenderType(type)
+    // Define showLegend for the steps below.
     const showLegend =
       ['pie', 'doughnut', 'polarArea', 'radar'].includes(type) ||
       (seriesCount > 1 && ['line', 'area', 'stackedBar'].includes(type))
+    // Define base for the steps below.
     const base = {
       responsive: true,
       maintainAspectRatio: false,
@@ -344,16 +689,22 @@
         },
       },
     }
+    // Check whether type === 'pie' || type === 'doughnut' before running this branch.
     if (type === 'pie' || type === 'doughnut') {
+      // Pass base as unknown as ChartOptions<ChartJsType> back to the caller.
       return base as unknown as ChartOptions<ChartJsType>
     }
+    // Check whether type === 'radar' || type === 'polarArea' before running this branch.
     if (type === 'radar' || type === 'polarArea') {
+      // Pass { ...base, scales: { r: { beginAtZero: true } }, } as unknown as ChartOptions<ChartJsType> back to the caller.
       return {
         ...base,
         scales: { r: { beginAtZero: true } },
       } as unknown as ChartOptions<ChartJsType>
     }
+    // Check whether type === 'scatter' || type === 'bubble' before running this branch.
     if (type === 'scatter' || type === 'bubble') {
+      // Pass { ...base, scales: { x: { type: 'linear', ticks: { callback: (index: number) => labels[index] ?? ''  back to the caller.
       return {
         ...base,
         scales: {
@@ -366,8 +717,11 @@
         },
       } as unknown as ChartOptions<ChartJsType>
     }
+    // Define isStacked for the steps below.
     const isStacked = type === 'stackedBar'
+    // Define isHorizontal for the steps below.
     const isHorizontal = type === 'horizontalBar'
+    // Define scales for the steps below.
     const scales = isHorizontal
       ? {
           x: { beginAtZero: true, stacked: isStacked, grid: { color: '#edf0f2' } },
@@ -377,63 +731,137 @@
           x: { stacked: isStacked, grid: { display: false } },
           y: { beginAtZero: true, stacked: isStacked, grid: { color: '#edf0f2' } },
         }
+    // Pass { ...base, scales } as unknown as ChartOptions<ChartJsType> back to the caller.
     return { ...base, scales } as unknown as ChartOptions<ChartJsType>
   }
 
+  // Define the helper that will run aisearch.
   async function runAISearch() {
+    // Use searchQuery.value.trim to initialize question.
     const question = searchQuery.value.trim()
 
+    // Check whether !question || aiLoading.value before running this branch.
     if (!question || aiLoading.value) return
 
+    // Define previousQuestion for the steps below.
+    const previousQuestion = undefined
+    // Update lastAIQuestion.value with the value on the right.
+    lastAIQuestion.value = question
+    // Update resultQuestion.value with the value on the right.
+    resultQuestion.value = question
+    // Update printError.value with the value on the right.
+    printError.value = ''
+    // Define controller for the steps below.
+    const controller = new AbortController()
+    // Update aiController with the value on the right.
+    aiController = controller
+    // Update aiLoading.value with the value on the right.
     aiLoading.value = true
+    // Update slowSearch.value with the value on the right.
+    slowSearch.value = false
+    // Check whether slowSearchTimer before running this branch.
+    if (slowSearchTimer) clearTimeout(slowSearchTimer)
+    // Update slowSearchTimer with the value on the right.
+    slowSearchTimer = setTimeout(() => {
+      // Check whether aiController === controller before running this branch.
+      if (aiController === controller) slowSearch.value = true
+    }, 3000)
+    // Update needsSignIn.value with the value on the right.
+    needsSignIn.value = false
+    // Update aiError.value with the value on the right.
     aiError.value = ''
+    // Update aiV1Response.value with the value on the right.
     aiV1Response.value = null
+    // Update aiResults.value with the value on the right.
     aiResults.value = []
+    // Update aiProjects.value with the value on the right.
     aiProjects.value = []
+    // Update aiResultSemester.value with the value on the right.
     aiResultSemester.value = ''
+    // Update aiStudentCount.value with the value on the right.
     aiStudentCount.value = null
+    // Update aiResultOperation.value with the value on the right.
     aiResultOperation.value = ''
+    // Update aiRequestedChartType.value with the value on the right.
     aiRequestedChartType.value = undefined
+    // Update aiAnalyticsPlan.value with the value on the right.
     aiAnalyticsPlan.value = null
+    // Update aiAnalyticsRows.value with the value on the right.
     aiAnalyticsRows.value = []
+    // Update aiAnalyticsSummary.value with the value on the right.
     aiAnalyticsSummary.value = null
 
     try {
+      // Define rawResponse for the steps below.
       const rawResponse = await $fetch<unknown>('/api/ai/ask', {
         method: 'POST',
+        signal: controller.signal,
         body: {
           question,
+          previousQuestion,
+          conversationId: conversationId.value,
+          workspace: { semesters, students, projects, partners, teams, choices },
           selectedSemester: selectedSemester.value,
         },
       })
 
+      // Check whether aiController !== controller before running this branch.
+      if (aiController !== controller) return
+      // Check whether rawResponse && typeof rawResponse === 'object' && 'conversationId' in rawResponse && typeof rawRespo before running this branch.
+      if (
+        rawResponse &&
+        typeof rawResponse === 'object' &&
+        'conversationId' in rawResponse &&
+        typeof rawResponse.conversationId === 'string'
+      )
+        // Update conversationId.value with the value on the right.
+        conversationId.value = rawResponse.conversationId
+      // Use normalizeV1Response to initialize v1Response.
       const v1Response = normalizeV1Response(rawResponse)
+      // Check whether v1Response before running this branch.
       if (v1Response) {
+        // Update aiV1Response.value with the value on the right.
         aiV1Response.value = v1Response
+        // Update turnHistory.value with the value on the right.
+        turnHistory.value = [
+          ...turnHistory.value,
+          { question, status: v1Response.status, explanation: v1Response.explanation },
+        ].slice(-12)
         return
       }
 
+      // Check whether !isLegacyAIResponse(rawResponse) before running this branch.
       if (!isLegacyAIResponse(rawResponse)) {
+        // Update aiError.value with the value on the right.
         aiError.value = 'The AI search returned an unsupported response. Please try again.'
         return
       }
+      // Define response for the steps below.
       const response = rawResponse
       /* Legacy response handling below intentionally retains its existing shape. */
       const legacyResponse = response
 
+      // Check whether !legacyResponse.data before running this branch.
       if (!legacyResponse.data) {
+        // Update aiError.value with the value on the right.
         aiError.value = 'This question is not supported yet.'
         return
       }
 
+      // Update aiResultOperation.value with the value on the right.
       aiResultOperation.value = legacyResponse.plan.operation
+      // Update aiRequestedChartType.value with the value on the right.
       aiRequestedChartType.value = legacyResponse.plan.chartType
+      // Update aiResultSemester.value with the value on the right.
       aiResultSemester.value = legacyResponse.data.semester ?? ''
 
       // Handle generalized analytical results.
       if (legacyResponse.plan.operation === 'analytics') {
+        // Define { plan, data } for the steps below.
         const { plan, data } = legacyResponse
+        // Define supportedSources for the steps below.
         const supportedSources = ['projects', 'partners', 'teams', 'semesters']
+        // Check whether !plan.source || !supportedSources.includes(plan.source) || !Array.isArray(plan.dimensions) || !Array before running this branch.
         if (
           !plan.source ||
           !supportedSources.includes(plan.source) ||
@@ -441,22 +869,33 @@
           !Array.isArray(plan.metrics) ||
           !normalizeAnalyticsResponse(plan, data)
         ) {
+          // Update aiError.value with the value on the right.
           aiError.value = 'The analytics response did not match its approved query plan.'
           return
         }
+        // Update aiAnalyticsSource.value with the value on the right.
         aiAnalyticsSource.value = plan.source
         return
       }
 
-      if (legacyResponse.plan.operation === 'count_projects' || legacyResponse.plan.operation === 'count') {
+      // Check whether legacyResponse.plan.operation === 'count_projects' || legacyResponse.plan.operation === 'count' before running this branch.
+      if (
+        legacyResponse.plan.operation === 'count_projects' ||
+        legacyResponse.plan.operation === 'count'
+      ) {
+        // Update aiStudentCount.value with the value on the right.
         aiStudentCount.value = legacyResponse.data.count ?? null
+        // Update aiResultOperation.value with the value on the right.
         aiResultOperation.value = 'count_projects'
         return
       }
 
+      // Check whether legacyResponse.plan.operation === 'count_students' before running this branch.
       if (legacyResponse.plan.operation === 'count_students') {
+        // Update aiStudentCount.value with the value on the right.
         aiStudentCount.value = legacyResponse.data.count ?? null
       } else if (legacyResponse.plan.operation === 'student_count_by_major') {
+        // Update aiResults.value with the value on the right.
         aiResults.value = (legacyResponse.data.results ?? [])
           .filter((item): item is { major: string; count: number } => 'major' in item)
           .map((item) => ({
@@ -464,6 +903,7 @@
             count: item.count,
           }))
       } else if (legacyResponse.plan.operation === 'student_count_by_year') {
+        // Update aiResults.value with the value on the right.
         aiResults.value = (legacyResponse.data.results ?? [])
           .filter((item): item is { year: string; count: number } => 'year' in item)
           .map((item) => ({
@@ -471,26 +911,50 @@
             count: item.count,
           }))
       } else if (legacyResponse.plan.operation === 'search_projects') {
+        // Update aiProjects.value with the value on the right.
         aiProjects.value = (legacyResponse.data.results ?? []).filter(
           (item): item is AIProject => 'id' in item
         )
       } else {
+        // Update aiError.value with the value on the right.
         aiError.value = 'This question is not supported yet.'
       }
     } catch (error) {
+      // Check whether aiController !== controller before running this branch.
+      if (aiController !== controller) return
+      // Define status for the steps below.
       const status =
         (error as { statusCode?: number; status?: number })?.statusCode ??
         (error as { status?: number })?.status
+      // Update needsSignIn.value with the value on the right.
+      needsSignIn.value = status === 401
+      // Update aiError.value with the value on the right.
       aiError.value =
-        status === 422
-          ? 'This question or result shape is not supported yet.'
-          : 'Unable to process your question. Please try again.'
+        status === 401
+          ? 'Sign in to ESA to use AI search.'
+          : status === 403
+            ? 'AI search requires an administrator account.'
+            : status === 422
+              ? 'This question or result shape is not supported yet.'
+              : 'Unable to process your question. Please try again.'
+      // Call console.error to run this step.
       console.error('AI search failed:', error)
     } finally {
-      aiLoading.value = false
+      // Check whether aiController === controller before running this branch.
+      if (aiController === controller) {
+        // Update aiController with the value on the right.
+        aiController = undefined
+        // Update aiLoading.value with the value on the right.
+        aiLoading.value = false
+        // Update slowSearch.value with the value on the right.
+        slowSearch.value = false
+        // Check whether slowSearchTimer before running this branch.
+        if (slowSearchTimer) clearTimeout(slowSearchTimer)
+      }
     }
   }
 
+  // Define the helper that will normalize analytics response.
   function normalizeAnalyticsResponse(
     plan: {
       source: string
@@ -500,73 +964,117 @@
     },
     data: Record<string, unknown>
   ): boolean {
+    // Check whether plan.metrics.length < 1 || plan.dimensions.length > 3 before running this branch.
     if (plan.metrics.length < 1 || plan.dimensions.length > 3) return false
+    // Check whether plan.source === 'enrollments' || plan.source === 'memberships' || plan.source === 'choices' before running this branch.
     if (plan.source === 'enrollments' || plan.source === 'memberships' || plan.source === 'choices')
+      // Pass false back to the caller.
       return false
+    // Define dimensionKeys for the steps below.
     const dimensionKeys = new Set(plan.dimensions)
+    // Check whether dimensionKeys.size !== plan.dimensions.length || plan.metrics.some((metric) => dimensionKeys.has(met before running this branch.
     if (
       dimensionKeys.size !== plan.dimensions.length ||
       plan.metrics.some((metric) => dimensionKeys.has(metric.alias))
     )
+      // Pass false back to the caller.
       return false
+    // Update aiAnalyticsSource.value with the value on the right.
     aiAnalyticsSource.value = plan.source
 
+    // Define normalizedPlan for the steps below.
     const normalizedPlan: AnalyticsPlanView = {
       source: plan.source,
       dimensions: [...plan.dimensions],
       metrics: plan.metrics.map((metric) => ({ ...metric })),
       ...(plan.chartType ? { chartType: plan.chartType } : {}),
     }
+    // Check whether plan.dimensions.length > 0 && !Array.isArray(data.results) before running this branch.
     if (plan.dimensions.length > 0 && !Array.isArray(data.results)) return false
+    // Define rows for the steps below.
     const rows = Array.isArray(data.results) ? data.results : []
 
+    // Check whether plan.dimensions.length === 0 && plan.metrics.length === 1 before running this branch.
     if (plan.dimensions.length === 0 && plan.metrics.length === 1) {
+      // Define metric for the steps below.
       const metric = plan.metrics[0]
+      // Define value for the steps below.
       const value = metric ? data[metric.alias] : undefined
+      // Check whether typeof value !== 'number' || !Number.isFinite(value) before running this branch.
       if (typeof value !== 'number' || !Number.isFinite(value)) return false
+      // Update aiAnalyticsPlan.value with the value on the right.
       aiAnalyticsPlan.value = normalizedPlan
+      // Update aiAnalyticsSummary.value with the value on the right.
       aiAnalyticsSummary.value = {
         label: metric ? analyticsMetricLabel(metric) : 'Result',
         value,
       }
+      // Pass true back to the caller.
       return true
     }
 
+    // Define selectedKeys for the steps below.
     const selectedKeys = [...plan.dimensions, ...plan.metrics.map((metric) => metric.alias)]
+    // Define normalizedRows for the steps below.
     const normalizedRows: AnalyticsRow[] = []
+    // Repeat the following steps for each item in rows.
     for (const rawRow of rows) {
+      // Check whether typeof rawRow !== 'object' || rawRow === null || Array.isArray(rawRow) before running this branch.
       if (typeof rawRow !== 'object' || rawRow === null || Array.isArray(rawRow)) return false
+      // Define normalized for the steps below.
       const normalized: AnalyticsRow = {}
+      // Repeat the following steps for each item in plan.dimensions.
       for (const field of plan.dimensions) {
+        // Define value for the steps below.
         const value = rawRow[field]
+        // Check whether typeof value !== 'string' && typeof value !== 'number' && typeof value !== 'boolean' before running this branch.
         if (typeof value !== 'string' && typeof value !== 'number' && typeof value !== 'boolean')
+          // Pass false back to the caller.
           return false
+        // Update normalized[field] with the value on the right.
         normalized[field] = value
       }
+      // Repeat the following steps for each item in plan.metrics.
       for (const metric of plan.metrics) {
+        // Define value for the steps below.
         const value = rawRow[metric.alias]
+        // Check whether typeof value !== 'number' || !Number.isFinite(value) before running this branch.
         if (typeof value !== 'number' || !Number.isFinite(value)) return false
+        // Update normalized[metric.alias] with the value on the right.
         normalized[metric.alias] = value
       }
+      // Call normalizedRows.push to run this step.
       normalizedRows.push(Object.fromEntries(selectedKeys.map((key) => [key, normalized[key]])))
     }
 
+    // Check whether plan.dimensions.length === 0 && normalizedRows.length === 0 before running this branch.
     if (plan.dimensions.length === 0 && normalizedRows.length === 0) {
+      // Define normalized for the steps below.
       const normalized: AnalyticsRow = {}
+      // Repeat the following steps for each item in plan.metrics.
       for (const metric of plan.metrics) {
+        // Define value for the steps below.
         const value = data[metric.alias]
+        // Check whether typeof value !== 'number' || !Number.isFinite(value) before running this branch.
         if (typeof value !== 'number' || !Number.isFinite(value)) return false
+        // Update normalized[metric.alias] with the value on the right.
         normalized[metric.alias] = value
       }
+      // Call normalizedRows.push to run this step.
       normalizedRows.push(normalized)
     }
 
+    // Update aiAnalyticsPlan.value with the value on the right.
     aiAnalyticsPlan.value = normalizedPlan
+    // Update aiAnalyticsRows.value with the value on the right.
     aiAnalyticsRows.value = normalizedRows
+    // Pass true back to the caller.
     return true
   }
 
+  // Define the helper that will analytics field label.
   function analyticsFieldLabel(field: string): string {
+    // Define labels for the steps below.
     const labels: Record<string, string> = {
       year: 'Academic Year',
       season: 'Season',
@@ -592,21 +1100,31 @@
       'project.status': 'Project Status',
       'project.partner.name': 'Partner',
     }
-    return labels[field] ?? field.split('.').map(toTitleCase).join(' · ')
+    // Pass labels[field] ?? field.split('.').map(toTitleCase).join(' - ') back to the caller.
+    return labels[field] ?? field.split('.').map(toTitleCase).join(' - ')
   }
 
+  // Define the helper that will analytics metric label.
   function analyticsMetricLabel(metric: AnalyticsMetric): string {
+    // Check whether metric.function === 'countDistinct' && metric.field before running this branch.
     if (metric.function === 'countDistinct' && metric.field) {
+      // Pass `Distinct ${analyticsFieldLabel(metric.field)}` back to the caller.
       return `Distinct ${analyticsFieldLabel(metric.field)}`
     }
+    // Pass `${aiAnalyticsLabel.value} count` back to the caller.
     return `${aiAnalyticsLabel.value} count`
   }
 
+  // Define the helper that will format analytics value.
   function formatAnalyticsValue(field: string, value: unknown): string {
+    // Check whether typeof value === 'number' before running this branch.
     if (typeof value === 'number') return value.toLocaleString()
+    // Check whether typeof value === 'boolean' before running this branch.
     if (typeof value === 'boolean') return value ? 'Yes' : 'No'
-    if (typeof value !== 'string') return '—'
+    // Check whether typeof value !== 'string' before running this branch.
+    if (typeof value !== 'string') return '-'
 
+    // Define labels for the steps below.
     const labels: Record<string, string> = {
       SOFTWARE: 'Software',
       HARDWARE: 'Hardware',
@@ -622,14 +1140,21 @@
       WEDNESDAY: 'Wednesday',
       THURSDAY: 'Thursday',
     }
+    // Check whether labels[value] before running this branch.
     if (labels[value]) return labels[value]
+    // Check whether field === 'season' || field.endsWith('.season') before running this branch.
     if (field === 'season' || field.endsWith('.season')) return toTitleCase(value)
+    // Check whether value.startsWith('EPCS_') before running this branch.
     if (value.startsWith('EPCS_')) return value.replace('_', ' ')
+    // Check whether /^[A-Z][A-Z0-9_]*$/.test(value) before running this branch.
     if (/^[A-Z][A-Z0-9_]*$/.test(value)) return toTitleCase(value)
+    // Pass value back to the caller.
     return value
   }
 
+  // Define the helper that will to title case.
   function toTitleCase(value: string): string {
+    // Pass value .toLowerCase() .split(/[_\s]+/) .map((part) => (part ? part[0]!.toUpperCase() + part.slice(1)  back to the caller.
     return value
       .toLowerCase()
       .split(/[_\s]+/)
@@ -637,32 +1162,56 @@
       .join(' ')
   }
 
+  // Store selectedDashboardProjectId as state so Vue reacts when it changes.
   const selectedDashboardProjectId = ref<string | null>(null)
 
+  // Recalculate selectedDashboardProject when the values it reads change.
   const selectedDashboardProject = computed(
     () => projects.find((project) => project.id === selectedDashboardProjectId.value) ?? null
   )
 
+  // Store popupSemester as state so Vue reacts when it changes.
   const popupSemester = ref('')
 
+  // Recalculate popupTeamSkills when the values it reads change.
   const popupTeamSkills = computed(() => {
+    // Define project for the steps below.
     const project = selectedDashboardProject.value
+    // Check whether !project || !popupSemester.value before running this branch.
     if (!project || !popupSemester.value) return []
 
+    // Define savedSkills for the steps below.
     const savedSkills = project.semesterDetails?.find(
       (detail) => detail.semesterId === popupSemester.value
     )?.teamSkills
 
+    // Check whether savedSkills?.length before running this branch.
     if (savedSkills?.length) return savedSkills
 
+    // Pass Array.from(new Set(popupStudents.value.flatMap((student) => student.skills))).slice(0, 8) back to the caller.
     return Array.from(new Set(popupStudents.value.flatMap((student) => student.skills))).slice(0, 8)
   })
 
+  // Define the helper that will official student id.
+  function officialStudentId(name: string) {
+    // Use students.filter to initialize matches.
+    const matches = students.filter(
+      (student) =>
+        student.name.trim().toLowerCase() === name.trim().toLowerCase() &&
+        student.semesters.includes(popupSemester.value)
+    )
+    // Pass matches.length === 1 ? matches[0]?.id : undefined back to the caller.
+    return matches.length === 1 ? matches[0]?.id : undefined
+  }
+  // Recalculate popupStudents when the values it reads change.
   const popupStudents = computed(() => {
+    // Check whether !selectedDashboardProject.value || !popupSemester.value before running this branch.
     if (!selectedDashboardProject.value || !popupSemester.value) {
+      // Pass [] back to the caller.
       return []
     }
 
+    // Define studentIds for the steps below.
     const studentIds = new Set(
       teams
         .filter(
@@ -673,16 +1222,24 @@
         .flatMap((team) => team.studentIds)
     )
 
-    return students.filter((student) => studentIds.has(student.id))
+    // Pass students .map((student) => getStudentForSemester(student, popupSemester.value)) .filter((student) => back to the caller.
+    return students
+      .map((student) => getStudentForSemester(student, popupSemester.value))
+      .filter((student) => studentIds.has(student.id))
   })
 
+  // Recalculate filteredProjects when the values it reads change.
   const filteredProjects = computed(() => {
+    // Check whether aiMode.value before running this branch.
     if (aiMode.value) return semesterProjects.value
 
+    // Use searchQuery.value.trim().toLowerCase to initialize query.
     const query = searchQuery.value.trim().toLowerCase()
 
+    // Check whether !query before running this branch.
     if (!query) return semesterProjects.value
 
+    // Pass semesterProjects.value.filter( (project) => project.name.toLowerCase().includes(query) || (getPartne back to the caller.
     return semesterProjects.value.filter(
       (project) =>
         project.name.toLowerCase().includes(query) ||
@@ -690,21 +1247,28 @@
     )
   })
 
-  const semesterStudents = computed(() =>
+  // Recalculate enrollmentSemesterIds when the values it reads change.
+  const enrollmentSemesterIds = computed(() =>
     selectedSemester.value === 'all'
-      ? students.filter((student) => student.participationStatus !== 'Exited Program')
-      : students.filter(
-          (student) =>
-            student.participationStatus !== 'Exited Program' &&
-            student.semesters.includes(selectedSemester.value)
-        )
+      ? semesters.map((semester) => semester.id)
+      : [selectedSemester.value]
   )
+  // Recalculate semesterStudents when the values it reads change.
+  const semesterStudents = computed(() =>
+    students
+      .filter((student) => student.semesters.some((id) => enrollmentSemesterIds.value.includes(id)))
+      .map((student) => getStudentForSemester(student, enrollmentSemesterIds.value))
+  )
+  // Recalculate semesterProjects when the values it reads change.
   const semesterProjects = computed(() =>
-    projects.filter(
-      (project) =>
-        selectedSemester.value === 'all' || project.semesters.includes(selectedSemester.value)
-    )
+    projects
+      .filter(
+        (project) =>
+          selectedSemester.value === 'all' || project.semesters.includes(selectedSemester.value)
+      )
+      .sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base', numeric: true }))
   )
+  // Recalculate returningStudents when the values it reads change.
   const returningStudents = computed(() =>
     semesterStudents.value.filter((student) =>
       selectedSemester.value === 'all'
@@ -712,131 +1276,111 @@
         : student.semesters.indexOf(selectedSemester.value) > 0
     )
   )
+  // Recalculate firstTimeStudents when the values it reads change.
   const firstTimeStudents = computed(() =>
     selectedSemester.value === 'all'
       ? semesterStudents.value.filter((student) => student.semesters.length === 1).length
       : semesterStudents.value.length - returningStudents.value.length
   )
+  // Recalculate returningPct when the values it reads change.
   const returningPct = computed(() =>
-    selectedSemester.value === 'SP26'
-      ? Math.round((38 / officialSpringRoster.value.length) * 100)
-      : semesterStudents.value.length
-        ? Math.round((returningStudents.value.length / semesterStudents.value.length) * 100)
-        : 0
+    semesterStudents.value.length
+      ? Math.round((returningStudents.value.length / semesterStudents.value.length) * 100)
+      : 0
   )
+  // Recalculate selectedSemesterLabel when the values it reads change.
   const selectedSemesterLabel = computed(() =>
     selectedSemester.value === 'all' ? 'All semesters' : getSemesterLabel(selectedSemester.value)
   )
 
   // Semester IDs use SP, SU, FA followed by the two-digit year.
   function semesterOrder(id: string): number {
+    // Use Number to initialize year.
     const year = Number(id.slice(-2))
+    // Use id.slice to initialize term.
     const term = id.slice(0, -2)
+    // Define termOrder for the steps below.
     const termOrder: Record<string, number> = { SP: 1, SU: 2, FA: 3 }
+    // Pass year * 10 + (termOrder[term] ?? 0) back to the caller.
     return year * 10 + (termOrder[term] ?? 0)
   }
 
-  function latestProjectSemester(project: Project): string {
-    return [...project.semesters].sort((a, b) => semesterOrder(a) - semesterOrder(b)).at(-1) ?? ''
-  }
-
-  function getDashboardProjectStatusForSemester(
-    project: Project,
-    semesterId: string
-  ): Project['status'] {
-    // A recorded semester-specific special status takes priority.
-    const savedStatus = project.semesterDetails?.find(
-      (detail) => detail.semesterId === semesterId
-    )?.status
-
-    if (savedStatus === 'Paused' || savedStatus === 'Completed' || savedStatus === 'Dropped') {
-      return savedStatus
-    }
-
-    const orderedSemesters = [...project.semesters].sort(
-      (a, b) => semesterOrder(a) - semesterOrder(b)
-    )
-    const firstSemester = orderedSemesters[0]
-    const lastSemester = orderedSemesters[orderedSemesters.length - 1]
-
-    // Legacy overall special statuses apply only to the final semester.
-    if (
-      semesterId === lastSemester &&
-      (project.status === 'Paused' ||
-        project.status === 'Completed' ||
-        project.status === 'Dropped')
-    ) {
-      return project.status
-    }
-
-    return semesterId === firstSemester ? 'New' : 'In Progress'
-  }
-
+  // Define the helper that will get dashboard project status.
   function getDashboardProjectStatus(project: Project): Project['status'] {
+    // Define semesterId for the steps below.
     const semesterId =
       selectedSemester.value === 'all' ? latestProjectSemester(project) : selectedSemester.value
 
+    // Pass getDashboardProjectStatusForSemester(project, semesterId) back to the caller.
     return getDashboardProjectStatusForSemester(project, semesterId)
   }
 
-  const officialSpringRoster = computed(() =>
-    Array.from(
-      new Map(
-        Object.values(officialProjectRosters)
-          .flat()
-          .map((student) => [student.name, student])
-      ).values()
-    )
-  )
+  // Recalculate displayedStudents when the values it reads change.
   const displayedStudents = computed(() =>
-    selectedSemester.value === 'SP26'
-      ? officialSpringRoster.value.map((student) => ({
-          ...student,
-          id: student.name,
-          recordId: null as string | null,
-        }))
-      : semesterStudents.value.map((student) => ({ ...student, recordId: student.id }))
+    semesterStudents.value
+      .map((student) => ({ ...student, recordId: student.id }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base', numeric: true }))
   )
-  const enrollmentCount = computed(() =>
-    selectedSemester.value === 'SP26'
-      ? officialSpringRoster.value.length
-      : semesterStudents.value.length
+  // Recalculate recentSemesterEnrollment when the values it reads change.
+  const recentSemesterEnrollment = computed(() =>
+    [...semesters]
+      .sort((a, b) => semesterOrder(b.id) - semesterOrder(a.id))
+      .slice(0, 3)
+      .map((semester) => ({
+        ...semester,
+        count: students.filter((student) => student.semesters.includes(semester.id)).length,
+      }))
   )
 
+  // Recalculate enrollmentCount when the values it reads change.
+  const enrollmentCount = computed(() => semesterStudents.value.length)
+
+  // Recalculate newProjectsCount when the values it reads change.
   const newProjectsCount = computed(() => {
+    // Check whether selectedSemester.value === 'all' before running this branch.
     if (selectedSemester.value === 'all') {
+      // Pass projects.length back to the caller.
       return projects.length
     }
 
+    // Pass semesterProjects.value.filter( (project) => getDashboardProjectStatusForSemester(project, selectedSe back to the caller.
     return semesterProjects.value.filter(
       (project) => getDashboardProjectStatusForSemester(project, selectedSemester.value) === 'New'
     ).length
   })
 
+  // Recalculate activeProjectsCount when the values it reads change.
   const activeProjectsCount = computed(
     () =>
       semesterProjects.value.filter((project) => {
+        // Check whether selectedSemester.value === 'all' before running this branch.
         if (selectedSemester.value === 'all') {
+          // Pass project.semesters.some((semesterId) => { const status = getDashboardProjectStatusForSemester(project back to the caller.
           return project.semesters.some((semesterId) => {
+            // Use getDashboardProjectStatusForSemester to initialize status.
             const status = getDashboardProjectStatusForSemester(project, semesterId)
 
-            return status === 'New' || status === 'In Progress' || status === 'Completed'
+            // Pass status === 'New' || status === 'In Progress' back to the caller.
+            return status === 'New' || status === 'In Progress'
           })
         }
 
+        // Use getDashboardProjectStatus to initialize status.
         const status = getDashboardProjectStatus(project)
 
-        return status === 'New' || status === 'In Progress' || status === 'Completed'
+        // Pass status === 'New' || status === 'In Progress' back to the caller.
+        return status === 'New' || status === 'In Progress'
       }).length
   )
 
+  // Recalculate stats when the values it reads change.
   const stats = computed(() => [
     {
-      label: 'Enrolled Students',
+      label: selectedSemester.value === 'all' ? 'Unique Students' : 'Enrolled Students',
       value: enrollmentCount.value,
       sub:
-        selectedSemester.value === 'SP26'
-          ? '5 course values not listed'
+        selectedSemester.value === 'all'
+          ? `${students.reduce((total, student) => total + enrollmentSemesterIds.value.filter((id) => student.semesters.includes(id)).length, 0)} semester enrollments`
           : selectedSemesterLabel.value,
       tone: 'accent',
     },
@@ -851,32 +1395,97 @@
     },
   ])
 
+  // Define the helper that will count students with course.
+  function countStudentsWithCourse(course: string) {
+    // Pass students.filter((student) => enrollmentSemesterIds.value.some( (id) => student.semesters.includes(id back to the caller.
+    return students.filter((student) =>
+      enrollmentSemesterIds.value.some(
+        (id) =>
+          student.semesters.includes(id) &&
+          getStudentCourse(getStudentForSemester(student, id)) === course
+      )
+    ).length
+  }
+  // Recalculate unknownCourseCount when the values it reads change.
+  const unknownCourseCount = computed(() => countStudentsWithCourse('Unknown'))
+  // Recalculate courseStats when the values it reads change.
   const courseStats = computed(() => [
-    {
-      label: 'EPCS 2200',
-      value: selectedSemester.value === 'SP26' ? 108 : firstTimeStudents.value,
-      tone: 'gold',
-    },
-    {
-      label: selectedSemester.value === 'SP26' ? 'EPCS 3200' : 'EPCS 3300',
-      value: selectedSemester.value === 'SP26' ? 38 : returningStudents.value.length,
-      tone: 'teal',
-    },
+    { label: 'EPCS 2200', value: countStudentsWithCourse('EPCS 2200'), tone: 'gold' },
+    { label: 'EPCS 3200', value: countStudentsWithCourse('EPCS 3200'), tone: 'teal' },
   ])
 
+  // Define the helper that will is pinned.
   function isPinned(key: string) {
+    // Pass props.pinnedItems.some((item) => item.key === key) back to the caller.
     return props.pinnedItems.some((item) => item.key === key)
   }
 
+  // Recalculate resultPinKey when the values it reads change.
+  const resultPinKey = computed(() =>
+    aiV1Response.value?.result
+      ? `ai:${resultQuestion.value}:${JSON.stringify(aiV1Response.value.result.rows.map((row) => row.values))}`
+      : ''
+  )
+
+  // Define the helper that will pin airesult.
+  function pinAIResult() {
+    // Check whether !aiV1Response.value?.result || !resultPinKey.value before running this branch.
+    if (!aiV1Response.value?.result || !resultPinKey.value) return
+    // Define snapshot for the steps below.
+    const snapshot = JSON.parse(JSON.stringify(aiV1Response.value)) as V1Presentation
+    // Call emit to run this step.
+    emit('togglePin', {
+      key: resultPinKey.value,
+      id: resultPinKey.value,
+      type: 'ai',
+      title: resultQuestion.value,
+      subtitle: 'Saved AI Result',
+      snapshot,
+    })
+    // Check whether props.assistantOnly before running this branch.
+    if (props.assistantOnly) emit('navigate', 'dashboard')
+  }
+
+  // Define the helper that will open pinned.
   function openPinned(item: PinnedItem) {
-    if (item.type === 'project') emit('openProject', item.id, 'SP26')
+    // Check whether item.type === 'ai' && item.snapshot before running this branch.
+    if (item.type === 'ai' && item.snapshot) {
+      // Call clearAISearch to run this step.
+      clearAISearch()
+      // Update aiMode.value with the value on the right.
+      aiMode.value = true
+      // Update resultQuestion.value with the value on the right.
+      resultQuestion.value = item.title
+      // Update aiV1Response.value with the value on the right.
+      aiV1Response.value = item.snapshot
+      // Call nextTick to run this step.
+      nextTick(() => printedResult.value?.scrollIntoView({ block: 'start' }))
+      return
+    }
+    // Check whether item.type === 'project' before running this branch.
+    if (item.type === 'project')
+      // Call emit to run this step.
+      emit('openProject', item.id, selectedSemester.value === 'all' ? 'FA26' : selectedSemester.value)
     else emit('openInsight', item.id)
   }
+  // Run the callback when the watched values change.
+  watch(selectedSemester, () => {
+    // Check whether !aiMode.value before running this branch.
+    if (!aiMode.value) return
+    // Define question for the steps below.
+    const question = searchQuery.value
+    // Call clearAISearch to run this step.
+    clearAISearch()
+    // Update searchQuery.value with the value on the right.
+    searchQuery.value = question
+    // Check whether question.trim() before running this branch.
+    if (question.trim()) void runAISearch()
+  })
 </script>
 
 <template>
   <div class="page-shell">
-    <div class="page-header">
+    <div v-if="!assistantOnly" class="page-header">
       <div>
         <h1 class="page-title">EPICS Program Dashboard</h1>
         <p class="page-subtitle">A semester-specific view of enrollment and project activity</p>
@@ -929,21 +1538,28 @@
       />
 
       <button
+        v-if="aiMode"
         type="button"
-        @click="
-          aiMode = !aiMode;
-          searchQuery = '';
-          aiV1Response = null;
-          aiResults = [];
-          aiProjects = [];
-          aiAnalyticsPlan = null;
-          aiAnalyticsRows = [];
-          aiAnalyticsSummary = null;
-          aiResultOperation = '';
-          aiStudentCount = null;
-          aiResultSemester = '';
-          aiError = ''
-        "
+        class="secondary-button"
+        :disabled="aiLoading || !searchQuery.trim()"
+        @click="runAISearch"
+        style="margin-right: 8px"
+      >
+        {{ aiLoading ? 'Searching...' : 'Ask AI' }}
+      </button>
+      <button
+        type="button"
+        class="secondary-button"
+        aria-label="Clear dashboard search"
+        style="margin-right: 8px"
+        @click="clearAISearch"
+      >
+        Clear
+      </button>
+
+      <button
+        type="button"
+        @click="toggleAIMode"
         :aria-pressed="aiMode"
         :style="{
           background: aiMode ? '#075b91' : '#e5e7eb',
@@ -956,11 +1572,12 @@
           whiteSpace: 'nowrap',
         }"
       >
-        ✧ AI Mode
+        AI Mode
       </button>
     </div>
 
     <div
+      ref="printedResult"
       v-if="aiMode && (aiLoading || aiError || aiResultOperation || aiV1Response)"
       style="
         margin-bottom: 24px;
@@ -970,49 +1587,58 @@
         background: white;
       "
     >
-      <p v-if="aiLoading">Analyzing your question...</p>
+      <p v-if="aiLoading" role="status">{{ slowSearch ? 'Still checking this request. The AI service is taking longer than usual...' : 'Checking ESA records...' }}</p>
 
       <p v-else-if="aiError" style="color: #b91c1c">
         {{ aiError }}
+        <a v-if="needsSignIn" href="/auth" class="secondary-button" style="display:inline-block;margin-left:8px" @click="saveSignInDraft">Sign in to ESA</a>
       </p>
 
       <template v-else>
-        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 24px">
-          <div
+        <div data-no-print style="display: flex; justify-content: flex-end; margin-bottom: 12px">
+          <button v-if="resultPinKey" type="button" class="secondary-button" :aria-pressed="isPinned(resultPinKey)" @click="pinAIResult">
+            {{ isPinned(resultPinKey) ? 'Unpin Result' : 'Pin Result' }}
+          </button>
+          <button
+            v-if="aiResultOperation || aiV1Response?.status === 'answer'"
+            type="button"
+            :disabled="printing"
+            @click="printResult"
             style="
-              width: 42px;
-              height: 42px;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              background: #eaf3f9;
-              border-radius: 12px;
+              padding: 8px 14px;
+              border: 1px solid #cbd5e1;
+              border-radius: 8px;
+              cursor: pointer;
               color: #075b91;
-              font-size: 20px;
-              flex-shrink: 0;
+              background: white;
             "
           >
-            ✦
-          </div>
-
+            {{ printing ? 'Opening print preview…' : 'Print result' }}
+          </button>
+        </div>
+        <p v-if="printError" data-no-print role="alert">{{ printError }}</p>
+        <p style="font-size: 13px; color: #475569; margin-bottom: 12px">{{ resultQuestion }}</p>
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 24px">
           <div>
             <h3 style="font-size: 19px; font-weight: 650; color: #1e293b; margin: 0">
               AI Insights
             </h3>
 
             <p style="font-size: 13px; color: #64748b; margin: 5px 0 0">
-              {{ aiV1Response ? aiV1StatusLabel :
-                aiResultOperation === 'analytics'
-                  ? `${aiAnalyticsLabel} analytics from ESA database records`
-                  : aiResultOperation === 'count_students'
-                    ? 'Student enrollment summary'
-                    : aiResultOperation === 'student_count_by_year'
-                      ? 'Student enrollment by year'
-                      : aiResultOperation === 'student_count_by_major'
-                        ? 'Student enrollment by major'
-                        : 'Results from ESA database records'
+              {{
+                aiV1Response
+                  ? aiV1StatusLabel
+                  : aiResultOperation === 'analytics'
+                    ? `${aiAnalyticsLabel} analytics from ESA database records`
+                    : aiResultOperation === 'count_students'
+                      ? 'Student enrollment summary'
+                      : aiResultOperation === 'student_count_by_year'
+                        ? 'Student enrollment by year'
+                        : aiResultOperation === 'student_count_by_major'
+                          ? 'Student enrollment by major'
+                          : 'Results from ESA database records'
               }}
-              {{ aiResultsSemester ? `— ${aiResultsSemester}` : '' }}
+              {{ aiResultSemester ? `- ${aiResultSemester}` : '' }}
             </p>
           </div>
         </div>
@@ -1025,15 +1651,21 @@
               border: '1px solid #e2e8f0',
               borderRadius: '10px',
               background: aiV1Response.status === 'answer' ? '#f0f9ff' : '#f8fafc',
-              color: aiV1Response.status === 'privacy_restricted' || aiV1Response.status === 'execution_error'
-                ? '#9f1239'
-                : '#334155',
+              color:
+                aiV1Response.status === 'privacy_restricted' ||
+                aiV1Response.status === 'execution_error'
+                  ? '#9f1239'
+                  : '#334155',
               marginBottom: '18px',
             }"
           >
             <strong>{{ aiV1StatusLabel }}:</strong> {{ aiV1Response.explanation }}
+            <span v-if="aiV1Response.durationMs !== undefined" style="display:block;margin-top:6px;font-size:12px">Response in {{ (aiV1Response.durationMs / 1000).toFixed(1) }}s</span>
           </div>
 
+          <div v-if="aiV1Response.suggestions?.length" data-no-print style="display:flex;flex-wrap:wrap;gap:10px;margin:16px 0">
+            <button v-for="suggestion in aiV1Response.suggestions" :key="suggestion" type="button" class="secondary-button" @click="askSuggestion(suggestion)">{{ suggestion }}</button>
+          </div>
           <div
             v-if="aiV1Response.summary"
             style="
@@ -1047,16 +1679,24 @@
             "
           >
             <div style="font-size: 40px; font-weight: 700; color: #075b91">
-              {{ aiV1Response.summary.value.toLocaleString() }}
+              {{ aiV1Response.summary.value.toLocaleString(undefined, { maximumFractionDigits: 2 }) }}{{ aiV1Response.summary.unit === 'percent' ? '%' : '' }}
             </div>
             <p style="margin: 8px 0 0; color: #64748b">
               {{ aiV1Response.summary.label }}
             </p>
           </div>
 
-          <SankeyChart v-if="aiV1Response.sankey" :data="aiV1Response.sankey" />
+          <SankeyChart v-if="aiV1Response.sankey" :data="{...aiV1Response.sankey, sourceLabel: aiV1Response.axisLabels?.x || aiV1Response.sankey.sourceLabel, targetLabel: aiV1Response.axisLabels?.y || aiV1Response.sankey.targetLabel}" />
 
-          <ClientOnly v-if="aiV1Response.chart">
+          <details v-if="aiV1Response.plot || (aiV1Response.chart && !['pie','doughnut','polarArea','radar'].includes(aiV1Response.chart.type))" data-no-print style="margin-bottom:16px">
+            <summary style="cursor:pointer">Axis titles</summary>
+            <div style="display:flex; flex-wrap:wrap; gap:12px; margin-top:10px">
+              <label>X-axis title <input v-model="customXLabel" maxlength="80" aria-label="X-axis title" class="search-input" /></label>
+              <label>Y-axis title <input v-model="customYLabel" maxlength="80" aria-label="Y-axis title" class="search-input" /></label>
+            </div>
+            <p style="font-size:12px;color:#64748b">To change the data, ask naturally, such as “use majors for x and student count for y.”</p>
+          </details>
+          <ClientOnly v-if="aiV1Response.chart || aiV1Response.plot">
             <div :style="aiAnalyticsChartStyle" style="max-width: 100%; margin: 8px 0 24px">
               <Chart
                 :type="aiV1ChartRenderType"
@@ -1067,7 +1707,9 @@
           </ClientOnly>
 
           <div
-            v-if="aiV1Response.result && aiV1Response.result.rows.length > 0 && !aiV1Response.summary"
+            v-if="
+              aiV1Response.result && aiV1Response.result.rows.length > 0 && !aiV1Response.summary
+            "
             style="
               width: 100%;
               min-width: 0;
@@ -1092,12 +1734,16 @@
                     v-for="column in aiV1Response.result.columns"
                     :key="column.key"
                     :style="{
-                      textAlign: column.role === 'metric' || column.role === 'calculation' ? 'right' : 'left',
+                      textAlign:
+                        column.role === 'metric' || column.role === 'calculation'
+                          ? 'right'
+                          : 'left',
                       padding: '16px 20px',
                       color: '#475569',
                       fontWeight: 600,
                       borderBottom: '1px solid #e2e8f0',
-                      whiteSpace: 'nowrap',
+                      whiteSpace: 'normal',
+                      maxWidth: '520px',
                     }"
                   >
                     {{ humanizeV1Label(column) }}
@@ -1115,14 +1761,25 @@
                     :key="`${row.key}-${column.key}`"
                     :style="{
                       padding: '16px 20px',
-                      color: column.role === 'metric' || column.role === 'calculation' ? '#075b91' : '#334155',
-                      fontWeight: column.role === 'metric' || column.role === 'calculation' ? 700 : 500,
-                      textAlign: column.role === 'metric' || column.role === 'calculation' ? 'right' : 'left',
+                      color:
+                        column.role === 'metric' || column.role === 'calculation'
+                          ? '#075b91'
+                          : '#334155',
+                      fontWeight:
+                        column.role === 'metric' || column.role === 'calculation' ? 700 : 500,
+                      textAlign:
+                        column.role === 'metric' || column.role === 'calculation'
+                          ? 'right'
+                          : 'left',
                       borderBottom: '1px solid #f1f5f9',
-                      whiteSpace: 'nowrap',
+                      whiteSpace: 'normal',
                     }"
                   >
-                    {{ formatV1Value(column, row.values[column.key]) }}
+                    <template v-if="contentReferences(row, column.key).length">
+                      <span v-if="['comments','notes','description','skills'].includes(column.key)">{{ formatV1Value(column,row.values[column.key]) }}</span>
+                      <a v-for="reference in contentReferences(row, column.key)" :key="reference.type + reference.id + reference.semesterId" :href="contentHref(reference)" :target="reference.type === 'external' ? '_blank' : undefined" rel="noopener noreferrer" style="display:block;color:#075b91;text-decoration:underline">{{ reference.label }}<span v-if="contentReferences(row, column.key).length > 1"> — {{ getSemesterLabel(reference.semesterId ?? '') }}</span></a>
+                    </template>
+                    <template v-else>{{ formatV1Value(column, row.values[column.key]) }}</template>
                   </td>
                 </tr>
               </tbody>
@@ -1130,17 +1787,40 @@
           </div>
 
           <p
-            v-if="aiV1Response.result && (!aiV1Response.result.complete || aiV1Response.result.hasMore)"
+            v-if="
+              aiV1Response.result && (!aiV1Response.result.complete || aiV1Response.result.hasMore)
+            "
             style="margin: 12px 0 20px; font-size: 13px; color: #92400e"
           >
             Results are limited: showing {{ aiV1Response.result.rows.length }}
             {{ aiV1Response.result.kind === 'aggregate' ? 'groups' : 'records' }} (limit
             {{ aiV1Response.result.limit }}).
-            {{ aiV1Response.result.hasMore ? 'More results are available.' : 'The full result exceeded the display limit.' }}
+            {{
+              aiV1Response.result.hasMore
+                ? 'More results are available.'
+                : 'The full result exceeded the display limit.'
+            }}
           </p>
 
-          <p v-if="aiV1Response.result" style="margin: 12px 0 20px; font-size: 12px; color: #64748b">
-            Source: ESA database · {{ aiV1Response.result.model }} records.
+          <div data-no-print v-if="aiV1Response.result?.hasMore" style="margin:12px 0">
+            <button type="button" class="secondary-button" :disabled="aiLoading" @click="loadMoreResults">Next page of results</button>
+            <span style="margin-left:12px">{{ aiV1Response.result.totalRows }} total matching rows</span>
+          </div>
+          <form v-if="conversationId" data-no-print @submit.prevent="askFollowUp" style="display:flex;gap:10px;flex-wrap:wrap;margin:20px 0">
+            <label style="flex:1;min-width:220px">Follow up or adjust this result
+              <input v-model="followUpText" maxlength="4000" aria-label="Follow up or adjust this result" placeholder="Only first-years, exclude unknowns, make it pie, show their profiles..." class="search-input" style="width:100%;margin-top:6px" />
+            </label>
+            <button type="submit" class="secondary-button" :disabled="aiLoading || !followUpText.trim()">Ask follow-up</button>
+          </form>
+          <details data-no-print v-if="turnHistory.length > 1" style="margin:12px 0">
+            <summary>Conversation ({{ turnHistory.length }} questions)</summary>
+            <ol><li v-for="(turn,index) in turnHistory" :key="index"><strong>{{ turn.question }}</strong> — {{ turn.explanation }}</li></ol>
+          </details>
+          <p
+            v-if="aiV1Response.result"
+            style="margin: 12px 0 20px; font-size: 12px; color: #64748b"
+          >
+            Source: ESA database - {{ aiV1Response.result.model }} records.
           </p>
         </section>
 
@@ -1210,7 +1890,10 @@
           </div>
         </div>
 
-        <section v-if="!aiV1Response && aiResultOperation === 'analytics'" style="min-width: 0; width: 100%">
+        <section
+          v-if="!aiV1Response && aiResultOperation === 'analytics'"
+          style="min-width: 0; width: 100%"
+        >
           <div
             v-if="aiAnalyticsView === 'summary' && aiAnalyticsSummary"
             style="
@@ -1246,7 +1929,11 @@
           </div>
 
           <ClientOnly
-            v-if="aiAnalyticsView !== 'summary' && aiAnalyticsView !== 'table' && aiAnalyticsRows.length > 0"
+            v-if="
+              aiAnalyticsView !== 'summary' &&
+              aiAnalyticsView !== 'table' &&
+              aiAnalyticsRows.length > 0
+            "
           >
             <div :style="aiAnalyticsChartStyle" style="max-width: 100%; margin: 8px 0 24px">
               <Chart
@@ -1322,7 +2009,7 @@
           </div>
 
           <p style="margin: 12px 0 20px; font-size: 12px; color: #64748b">
-            Source: ESA database · {{ aiAnalyticsLabel }}.
+            Source: ESA database - {{ aiAnalyticsLabel }}.
           </p>
         </section>
 
@@ -1382,7 +2069,8 @@
 
         <p
           v-if="
-            !aiV1Response && ['student_count_by_major', 'student_count_by_year'].includes(aiResultOperation) &&
+            !aiV1Response &&
+            ['student_count_by_major', 'student_count_by_year'].includes(aiResultOperation) &&
             aiResults.length === 0
           "
         >
@@ -1494,6 +2182,7 @@
         </p>
       </template>
     </div>
+    <template v-if="!assistantOnly">
     <div class="dashboard-stats">
       <div v-for="stat in stats" :key="stat.label" class="stat-card metric-card">
         <div class="metric-value" :class="`metric-${stat.tone}`">{{ stat.value }}</div>
@@ -1501,8 +2190,18 @@
         <div class="metric-sub">{{ stat.sub }}</div>
       </div>
 
+      <section v-if="selectedSemester === 'all'" class="stat-card metric-card">
+        <h2 class="metric-label">Enrollment by Semester</h2>
+        <dl style="display:grid;gap:8px;margin-top:10px">
+          <div v-for="semester in recentSemesterEnrollment" :key="semester.id" style="display:flex;justify-content:space-between;gap:8px">
+            <dt>{{ semester.label }}</dt><dd class="mono">{{ semester.count }}</dd>
+          </div>
+        </dl>
+      </section>
       <div class="stat-card metric-card course-enrollment-card">
         <div class="metric-label">EPICS Course Enrollment</div>
+        <p v-if="selectedSemester === 'all'" class="metric-sub">Unique students per course. Students may appear in both courses.</p>
+        <p v-if="unknownCourseCount" class="metric-sub">Course not listed in the source records for {{ unknownCourseCount }} {{ unknownCourseCount === 1 ? 'student' : 'students' }}. Included in enrollment totals.</p>
 
         <div class="course-enrollment-split">
           <div v-for="course in courseStats" :key="course.label" class="course-enrollment-item">
@@ -1549,7 +2248,7 @@
         <div class="panel-heading">
           <div>
             <h2>{{ selectedSemester === 'all' ? 'All Projects' : 'Projects This Semester' }}</h2>
-            <p>{{ selectedSemesterLabel }} project roster</p>
+            <p>{{ selectedSemesterLabel }} project roster · Project name A–Z</p>
           </div>
           <button class="text-button" @click="emit('navigate', 'projects')">View projects</button>
         </div>
@@ -1563,7 +2262,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="project in filteredProjects.slice(0, 8)" :key="project.id">
+            <tr v-for="project in filteredProjects.slice(0, 10)" :key="project.id">
               <td>
                 <button
                   class="record-link"
@@ -1604,9 +2303,9 @@
             <tr v-if="!filteredProjects.length">
               <td colspan="4" class="empty-cell">No projects recorded for this selection.</td>
             </tr>
-            <tr v-else-if="filteredProjects.length > 8">
+            <tr v-else-if="filteredProjects.length > 10">
               <td colspan="4" class="empty-cell">
-                {{ filteredProjects.length - 8 }} more projects available in the Projects view.
+                {{ filteredProjects.length - 10 }} more projects available in the Projects view.
               </td>
             </tr>
           </tbody>
@@ -1654,9 +2353,7 @@
             </p>
           </div>
 
-          <button class="secondary-button" @click="selectedDashboardProjectId = null">
-            ✕ Close
-          </button>
+          <button class="secondary-button" @click="selectedDashboardProjectId = null">Close</button>
         </div>
 
         <p style="margin-top: 20px">
@@ -1685,15 +2382,18 @@
 
         <div style="margin-top: 24px">
           <h3 style="font-weight: 700; margin-bottom: 12px">
-            Student Roster · {{ getSemesterLabel(popupSemester) }}
+            Student Roster - {{ getSemesterLabel(popupSemester) }}
           </h3>
 
           <div
-            v-for="student in officialProjectRosters[selectedDashboardProject.id] ?? []"
+            v-for="student in getOfficialProjectRoster(selectedDashboardProject.id, popupSemester)"
             :key="`official-${student.name}`"
             style="padding: 10px 0; border-bottom: 1px solid #e2e8dc"
           >
-            <div style="font-weight: 600">{{ student.name }}</div>
+            <template v-if="officialStudentId(student.name)">
+              <button type="button" class="record-link" @click="emit('openStudent', officialStudentId(student.name)!, popupSemester)">{{ student.name }}</button>
+            </template>
+            <strong v-else>{{ student.name }}</strong>
             <div style="font-size: 13px; color: #5a6b52">{{ student.major }}</div>
           </div>
 
@@ -1702,14 +2402,14 @@
             :key="student.id"
             style="padding: 10px 0; border-bottom: 1px solid #e2e8dc"
           >
-            <div style="font-weight: 600">{{ student.name }}</div>
+            <button type="button" class="record-link" @click="emit('openStudent', student.id, popupSemester)">{{ student.name }}</button>
             <div style="font-size: 13px; color: #5a6b52">{{ student.major }}</div>
           </div>
 
           <p
             v-if="
               popupStudents.length === 0 &&
-              !officialProjectRosters[selectedDashboardProject.id]?.length
+              !getOfficialProjectRoster(selectedDashboardProject.id, popupSemester).length
             "
             style="color: #5a6b52"
           >
@@ -1736,9 +2436,7 @@
             {{
               selectedDashboardProject.semesterDetails?.find(
                 (detail) => detail.semesterId === popupSemester
-              )?.contactName ||
-              getPartnerById(selectedDashboardProject.partnerId)?.contact ||
-              'Not provided'
+              )?.contactName || 'Not Provided'
             }}
           </div>
 
@@ -1746,9 +2444,7 @@
             {{
               selectedDashboardProject.semesterDetails?.find(
                 (detail) => detail.semesterId === popupSemester
-              )?.contactEmail ||
-              getPartnerById(selectedDashboardProject.partnerId)?.email ||
-              ''
+              )?.contactEmail || ''
             }}
           </div>
 
@@ -1756,9 +2452,7 @@
             {{
               selectedDashboardProject.semesterDetails?.find(
                 (detail) => detail.semesterId === popupSemester
-              )?.contactPhone ||
-              getPartnerById(selectedDashboardProject.partnerId)?.phone ||
-              ''
+              )?.contactPhone || ''
             }}
           </div>
 
@@ -1774,9 +2468,7 @@
             {{
               selectedDashboardProject.semesterDetails?.find(
                 (detail) => detail.semesterId === popupSemester
-              )?.mentorName ||
-              selectedDashboardProject.mentorName ||
-              'Not assigned'
+              )?.mentorName || 'Not Assigned'
             }}
           </p>
         </div>
@@ -1806,6 +2498,10 @@
         </div>
       </div>
     </div>
+    <div style="margin-top:24px;display:flex;justify-content:flex-end">
+      <button class="secondary-button" @click="emit('navigate', 'settings')">Customize Appearance</button>
+    </div>
+    </template>
   </div>
 </template>
 <style scoped>

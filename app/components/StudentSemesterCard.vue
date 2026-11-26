@@ -1,4 +1,17 @@
 <script setup lang="ts">
+  /**
+   * Purpose
+   * Render the student semester card part of the ESA interface.
+   *
+   * Inputs
+   * - The component’s props, shared state, and any user actions it handles.
+   *
+   * Outputs
+   * - Rendered controls or content, plus events exposed to the parent where applicable.
+   *
+   * Pseudocode
+   * Read the inputs → prepare values for display → render the template → respond to user actions.
+   */
   import { ACTION_ICONS } from '~/utils/icons'
   import type { ChoiceEntry, SemesterCard, StudentRow } from '~/composables/useSemesterCards'
   import { ENROLLMENT_FIELDS } from '~/utils/options'
@@ -6,6 +19,7 @@
   import { searchProjects } from '~/utils/search'
   import type { ProjectRead } from '#server/services/projectService'
 
+  // Use defineProps to initialize props.
   const props = defineProps<{
     rowId: string
     row: StudentRow
@@ -15,10 +29,15 @@
     disabled?: boolean
   }>()
 
+  // Use useRowStaging to initialize { staging, saving }.
   const { staging, saving } = useRowStaging()
+  // Use useAllProjects to initialize { data: allProjects }.
   const { data: allProjects } = useAllProjects()
+  // Use useRecordModals to initialize { openProjectPicker }.
   const { openProjectPicker } = useRecordModals()
+  // Use useSemesterLookup to initialize { semesterLabel, semesterSortKey }.
   const { semesterLabel, semesterSortKey } = useSemesterLookup()
+  // Use useSemesterCards to initialize { teamProject, setTeam, deleteCard, undoCard, moveChoice }.
   const { teamProject, setTeam, deleteCard, undoCard, moveChoice } = useSemesterCards({
     staging,
     projects: allProjects,
@@ -29,37 +48,48 @@
   // --------------------------------------------------------- enrollment fields
 
   function enrollmentValue(childId: string, field: string) {
+    // Pass staging.children.get(props.rowId, 'Enrollments', childId, field) back to the caller.
     return staging.children.get(props.rowId, 'Enrollments', childId, field)
   }
 
+  // Define the helper that will set enrollment value.
   function setEnrollmentValue(childId: string, field: string, value: any) {
+    // Call staging.children.set to run this step.
     staging.children.set(props.rowId, 'Enrollments', childId, field, value)
   }
 
+  // Define the helper that will enrollment edited.
   function enrollmentEdited(childId: string, field: string) {
+    // Pass staging.children.isEdited(props.rowId, 'Enrollments', childId, field) back to the caller.
     return staging.children.isEdited(props.rowId, 'Enrollments', childId, field)
   }
 
   // ---------------------------------------------------------------- team field
 
   async function searchTeams(query: string) {
+    // Pass searchProjects(allProjects.value, query, { semesterId: props.card.semesterId }) back to the caller.
     return searchProjects(allProjects.value, query, { semesterId: props.card.semesterId })
   }
 
+  // Define the helper that will on set team.
   function onSetTeam(project?: ProjectRead) {
+    // Call setTeam to run this step.
     setTeam(props.row, props.rowId, props.card, project)
   }
 
   // ----------------------------------------------------------- team preferences
 
   function projectName(projectId: string) {
+    // Pass allProjects.value.find((project) => project.id === projectId)?.name ?? 'Unknown Project' back to the caller.
     return allProjects.value.find((project) => project.id === projectId)?.name ?? 'Unknown Project'
   }
 
+  // Define the helper that will add preference.
   async function addPreference() {
     // Staged-deleted picks stay excluded: re-creating one in the same batch would collide with the
     // choice that has not been deleted server side yet.
     const taken = new Set(props.choices.map((entry) => entry.projectId))
+    // Define project for the steps below.
     const project = await openProjectPicker({
       title: 'Add Team Preference',
       projects: searchProjects(allProjects.value, '', {
@@ -67,8 +97,11 @@
         exclude: taken,
       }),
     })
+    // Check whether !project before running this branch.
     if (!project) return
+    // Define rank for the steps below.
     const rank = Math.max(0, ...props.choices.map((entry) => entry.rank)) + 1
+    // Call staging.children.add to run this step.
     staging.children.add(props.rowId, 'Choices', {
       semesterId: props.card.semesterId,
       projectId: project.id,

@@ -1,14 +1,35 @@
 <script setup lang="ts">
+  /**
+   * Purpose
+   * Render the app part of the ESA interface.
+   *
+   * Inputs
+   * - The component’s props, shared state, and any user actions it handles.
+   *
+   * Outputs
+   * - Rendered controls or content, plus events exposed to the parent where applicable.
+   *
+   * Pseudocode
+   * Read the inputs → prepare values for display → render the template → respond to user actions.
+   */
+  import { useColorMode, useRoute } from '#imports'
+  import { computed } from 'vue'
+  // Use useColorMode to initialize colorMode.
   const colorMode = useColorMode()
 
+  // Use useRoute to initialize route.
   const route = useRoute()
+  // Recalculate isRedesign when the values it reads change.
   const isRedesign = computed(() => route.path === '/database-redesign')
 
+  // Recalculate isDark when the values it reads change.
   const isDark = computed({
     get() {
+      // Pass colorMode.value === 'dark' back to the caller.
       return colorMode.value === 'dark'
     },
     set() {
+      // Update colorMode.preference with the value on the right.
       colorMode.preference = colorMode.value === 'dark' ? 'light' : 'dark'
     },
   })

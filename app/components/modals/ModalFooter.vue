@@ -1,6 +1,20 @@
 <script setup lang="ts">
+  /**
+   * Purpose
+   * Render the modal footer part of the ESA interface.
+   *
+   * Inputs
+   * - The component’s props, shared state, and any user actions it handles.
+   *
+   * Outputs
+   * - Rendered controls or content, plus events exposed to the parent where applicable.
+   *
+   * Pseudocode
+   * Read the inputs → prepare values for display → render the template → respond to user actions.
+   */
   import { ACTION_ICONS } from '~/utils/icons'
 
+  // Call withDefaults to run this step.
   withDefaults(
     defineProps<{
       confirmLabel?: string
@@ -13,6 +27,7 @@
     { confirmLabel: 'Confirm', cancelLabel: 'Cancel', confirmColor: 'primary' }
   )
 
+  // Use defineEmits to initialize emit.
   const emit = defineEmits<{ cancel: []; confirm: [] }>()
 </script>
 

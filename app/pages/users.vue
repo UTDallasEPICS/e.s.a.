@@ -1,64 +1,103 @@
 <script setup lang="ts">
+  /**
+   * Purpose
+   * Render the users part of the ESA interface.
+   *
+   * Inputs
+   * - The component’s props, shared state, and any user actions it handles.
+   *
+   * Outputs
+   * - Rendered controls or content, plus events exposed to the parent where applicable.
+   *
+   * Pseudocode
+   * Read the inputs → prepare values for display → render the template → respond to user actions.
+   */
   import type { UserRead } from '#server/services/userService'
   import { authClient } from '~/utils/auth-client'
   import { errorMessage } from '~/utils/errors'
 
+  // Define { data: users, pending, error, refresh } for the steps below.
   const { data: users, pending, error, refresh } = await useFetch<UserRead[]>('/api/users')
+  // Define { data: session } for the steps below.
   const { data: session } = await authClient.useSession(useFetch)
 
+  // Use useToast to initialize toast.
   const toast = useToast()
+  // Use useConfirm to initialize confirm.
   const confirm = useConfirm()
+  // Store busyId as state so Vue reacts when it changes.
   const busyId = ref<string | null>(null)
 
+  // Recalculate myId when the values it reads change.
   const myId = computed(() => session.value?.user.id)
+  // Recalculate activeUsers when the values it reads change.
   const activeUsers = computed(() => (users.value ?? []).filter((u) => u.active))
+  // Recalculate inactiveUsers when the values it reads change.
   const inactiveUsers = computed(() => (users.value ?? []).filter((u) => !u.active))
+  // Recalculate adminCount when the values it reads change.
   const adminCount = computed(() => (users.value ?? []).filter((u) => u.role === 'ADMIN').length)
 
+  // Define the helper that will get image link.
   function getImageLink(user: { image: boolean; id: string }) {
+    // Pass user.image ? 'api/users/' + user.id + '/profile' : undefined back to the caller.
     return user.image ? 'api/users/' + user.id + '/profile' : undefined
   }
 
   // Self is the only admin and would demote out of the role entirely — the server rejects this
   // too, but disabling it here avoids a round-trip just to show the error.
   function canDemote(user: UserRead) {
+    // Pass user.id !== myId.value || adminCount.value > 1 back to the caller.
     return user.id !== myId.value || adminCount.value > 1
   }
 
+  // Define the helper that will update user.
   async function updateUser(id: string, data: { active?: boolean; role?: 'USER' | 'ADMIN' }) {
+    // Update busyId.value with the value on the right.
     busyId.value = id
     try {
       await $fetch(`/api/users/${id}`, { method: 'PUT', body: data })
       await refresh()
     } catch (err) {
+      // Call toast.add to run this step.
       toast.add({ title: 'Update failed', description: errorMessage(err), color: 'error' })
     } finally {
+      // Update busyId.value with the value on the right.
       busyId.value = null
     }
   }
 
+  // Define activate for the steps below.
   const activate = (user: UserRead) => updateUser(user.id, { active: true })
+  // Define deactivate for the steps below.
   const deactivate = (user: UserRead) => updateUser(user.id, { active: false })
+  // Define promote for the steps below.
   const promote = (user: UserRead) => updateUser(user.id, { role: 'ADMIN' })
 
+  // Define the helper that will demote.
   async function demote(user: UserRead) {
+    // Define ok for the steps below.
     const ok = await confirm({
       title: `Demote ${user.name}?`,
       description: `${user.name} will lose admin access to this application.`,
       confirmLabel: 'Demote',
     })
+    // Check whether !ok before running this branch.
     if (!ok) return
     await updateUser(user.id, { role: 'USER' })
   }
 
+  // Define the helper that will remove user.
   async function removeUser(user: UserRead) {
+    // Update busyId.value with the value on the right.
     busyId.value = user.id
     try {
       await $fetch(`/api/users/${user.id}`, { method: 'DELETE' })
       await refresh()
     } catch (err) {
+      // Call toast.add to run this step.
       toast.add({ title: 'Delete failed', description: errorMessage(err), color: 'error' })
     } finally {
+      // Update busyId.value with the value on the right.
       busyId.value = null
     }
   }

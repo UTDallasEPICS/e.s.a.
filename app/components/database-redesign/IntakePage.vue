@@ -1,4 +1,17 @@
 <script setup lang="ts">
+  /**
+   * Purpose
+   * Render the intake page part of the ESA interface.
+   *
+   * Inputs
+   * - The component’s props, shared state, and any user actions it handles.
+   *
+   * Outputs
+   * - Rendered controls or content, plus events exposed to the parent where applicable.
+   *
+   * Pseudocode
+   * Read the inputs → prepare values for display → render the template → respond to user actions.
+   */
   import { ref, computed } from 'vue'
   import { projects, getPartnerById } from '../data'
 
@@ -14,35 +27,57 @@
     submittedAt: string
   }
 
+  // Use projects.filter to initialize activeProjects.
   const activeProjects = projects.filter((p) => p.status === 'Active')
+  // Recalculate maxRank when the values it reads change.
   const maxRank = computed(() => Math.min(6, activeProjects.length))
 
+  // Store name as state so Vue reacts when it changes.
   const name = ref('')
+  // Store email as state so Vue reacts when it changes.
   const email = ref('')
+  // Store rankings as state so Vue reacts when it changes.
   const rankings = ref<Record<string, number>>({})
+  // Store skill1 as state so Vue reacts when it changes.
   const skill1 = ref('')
+  // Store skill2 as state so Vue reacts when it changes.
   const skill2 = ref('')
+  // Store skill3 as state so Vue reacts when it changes.
   const skill3 = ref('')
+  // Store notes as state so Vue reacts when it changes.
   const notes = ref('')
+  // Store submitted as state so Vue reacts when it changes.
   const submitted = ref(false)
+  // Store entries as state so Vue reacts when it changes.
   const entries = ref<IntakeEntry[]>([])
+  // Store view as state so Vue reacts when it changes.
   const view = ref<'form' | 'submissions'>('form')
 
+  // Define the helper that will set rank.
   function setRank(projectId: string, rank: number) {
+    // Define next for the steps below.
     const next = { ...rankings.value }
+    // Call Object.keys(next).forEach to run this step.
     Object.keys(next).forEach((k) => {
+      // Check whether next[k] === rank before running this branch.
       if (next[k] === rank) delete next[k]
     })
+    // Check whether next[projectId] === rank || rank === 0 before running this branch.
     if (next[projectId] === rank || rank === 0) delete next[projectId]
     else next[projectId] = rank
+    // Update rankings.value with the value on the right.
     rankings.value = next
   }
 
+  // Define the helper that will is rank taken by other.
   function isRankTakenByOther(projectId: string, rank: number) {
+    // Pass Object.entries(rankings.value).some(([k, v]) => k !== projectId && v === rank) back to the caller.
     return Object.entries(rankings.value).some(([k, v]) => k !== projectId && v === rank)
   }
 
+  // Define the helper that will handle submit.
   function handleSubmit() {
+    // Call entries.value.unshift to run this step.
     entries.value.unshift({
       id: Date.now().toString(),
       name: name.value,
@@ -57,24 +92,37 @@
       notes: notes.value,
       submittedAt: new Date().toLocaleString(),
     })
+    // Update submitted.value with the value on the right.
     submitted.value = true
   }
 
+  // Define the helper that will reset.
   function reset() {
+    // Update name.value with the value on the right.
     name.value = ''
+    // Update email.value with the value on the right.
     email.value = ''
+    // Update rankings.value with the value on the right.
     rankings.value = {}
+    // Update skill1.value with the value on the right.
     skill1.value = ''
+    // Update skill2.value with the value on the right.
     skill2.value = ''
+    // Update skill3.value with the value on the right.
     skill3.value = ''
+    // Update notes.value with the value on the right.
     notes.value = ''
+    // Update submitted.value with the value on the right.
     submitted.value = false
   }
 
+  // Define the helper that will get project name.
   function getProjectName(id: string) {
+    // Pass projects.find((p) => p.id === id)?.name ?? id back to the caller.
     return projects.find((p) => p.id === id)?.name ?? id
   }
 
+  // Recalculate skillFields when the values it reads change.
   const skillFields = computed(() => [
     { label: 'Skill 1 *', model: skill1 },
     { label: 'Skill 2 *', model: skill2 },

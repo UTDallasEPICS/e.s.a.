@@ -1,3 +1,16 @@
+/**
+ * Purpose
+ * Provide the project service logic used by other parts of ESA.
+ *
+ * Inputs
+ * - Values passed by callers and any configuration or records imported here.
+ *
+ * Outputs
+ * - The values, types, or functions exported by this file.
+ *
+ * Pseudocode
+ * Load the dependencies → define the file’s rules or helpers → expose them for other files to use.
+ */
 import type { ProjectType, ProjectStatus } from '@@/prisma/generated/client'
 import type { TeamCreate, TeamRead } from '#server/services/teamService'
 import { MEMBERSHIP_INCLUDE } from '#server/services/membershipService'
@@ -34,7 +47,9 @@ export interface ProjectUpdate {
   partnerId?: string
 }
 
+// Define getAllProjects for the steps below.
 const getAllProjects = async (semesterId?: string): Promise<ProjectRead[]> => {
+  // Define projects for the steps below.
   const projects = await prisma.project.findMany({
     where: semesterId ? { Teams: { some: { semesterId } } } : undefined,
     orderBy: { name: 'asc' },
@@ -43,10 +58,13 @@ const getAllProjects = async (semesterId?: string): Promise<ProjectRead[]> => {
       Teams: { include: { Memberships: { include: MEMBERSHIP_INCLUDE }, Semester: true } },
     },
   })
+  // Pass projects back to the caller.
   return projects
 }
 
+// Define getProjectById for the steps below.
 const getProjectById = async (id: string): Promise<ProjectRead | null> => {
+  // Define project for the steps below.
   const project = await prisma.project.findUnique({
     where: { id },
     include: {
@@ -54,11 +72,15 @@ const getProjectById = async (id: string): Promise<ProjectRead | null> => {
       Teams: { include: { Memberships: { include: MEMBERSHIP_INCLUDE }, Semester: true } },
     },
   })
+  // Pass project back to the caller.
   return project
 }
 
+// Define createProject for the steps below.
 const createProject = async (data: ProjectCreate): Promise<ProjectRead> => {
+  // Define { Teams, ...rest } for the steps below.
   const { Teams, ...rest } = data
+  // Define project for the steps below.
   const project = await prisma.project.create({
     data: {
       ...rest,
@@ -76,10 +98,13 @@ const createProject = async (data: ProjectCreate): Promise<ProjectRead> => {
       Teams: { include: { Memberships: { include: MEMBERSHIP_INCLUDE }, Semester: true } },
     },
   })
+  // Pass project back to the caller.
   return project
 }
 
+// Define updateProject for the steps below.
 const updateProject = async (id: string, data: ProjectUpdate): Promise<ProjectRead> => {
+  // Define project for the steps below.
   const project = await prisma.project.update({
     where: { id },
     data,
@@ -88,13 +113,16 @@ const updateProject = async (id: string, data: ProjectUpdate): Promise<ProjectRe
       Teams: { include: { Memberships: { include: MEMBERSHIP_INCLUDE }, Semester: true } },
     },
   })
+  // Pass project back to the caller.
   return project
 }
 
+// Define deleteProject for the steps below.
 const deleteProject = async (id: string): Promise<void> => {
   await prisma.project.delete({ where: { id } })
 }
 
+// Define projectService for the steps below.
 const projectService = {
   getAllProjects,
   getProjectById,

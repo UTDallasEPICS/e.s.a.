@@ -1,4 +1,17 @@
 <script setup lang="ts">
+  /**
+   * Purpose
+   * Render the project row expansion part of the ESA interface.
+   *
+   * Inputs
+   * - The component’s props, shared state, and any user actions it handles.
+   *
+   * Outputs
+   * - Rendered controls or content, plus events exposed to the parent where applicable.
+   *
+   * Pseudocode
+   * Read the inputs → prepare values for display → render the template → respond to user actions.
+   */
   import { ACTION_ICONS } from '~/utils/icons'
   import type { MembershipRead } from '#server/services/membershipService'
   import type { ProjectRead } from '#server/services/projectService'
@@ -11,6 +24,7 @@
     isMentor: boolean
   }
 
+  // Use defineProps to initialize props.
   const props = defineProps<{
     rowId: string
     row: ProjectRead
@@ -18,11 +32,17 @@
     disabled?: boolean
   }>()
 
+  // Use useRowStaging to initialize { staging, saving }.
   const { staging, saving } = useRowStaging()
+  // Use useSemesterFilter to initialize { semesterId }.
   const { semesterId } = useSemesterFilter()
+  // Use useSemesterLookup to initialize { semesters, semesterLabel, semesterSortKey, teamLabel }.
   const { semesters, semesterLabel, semesterSortKey, teamLabel } = useSemesterLookup()
+  // Use useAllStudents to initialize { data: allStudents }.
   const { data: allStudents } = useAllStudents()
+  // Use useAllProjects to initialize { data: allProjects }.
   const { data: allProjects } = useAllProjects()
+  // Use useRecordModals to initialize { openTeamModal, openMemberModal, openMoveModal }.
   const { openTeamModal, openMemberModal, openMoveModal } = useRecordModals()
 
   // ------------------------------------------------------------------- teams
@@ -41,6 +61,7 @@
       : allTeamCards.value
   )
 
+  // Recalculate accordionItems when the values it reads change.
   const accordionItems = computed(() =>
     teamCards.value.map((card) => ({ label: teamLabel(card.record), value: card.id, card }))
   )
@@ -48,10 +69,13 @@
   // ------------------------------------------------------------- description
 
   function descriptionValue() {
+    // Pass staging.fields.get(props.rowId, 'description') ?? '' back to the caller.
     return staging.fields.get(props.rowId, 'description') ?? ''
   }
 
+  // Define the helper that will set description.
   function setDescription(value: string) {
+    // Call staging.fields.set to run this step.
     staging.fields.set(props.rowId, 'description', value)
   }
 
@@ -62,6 +86,7 @@
     const used = new Set(
       allTeamCards.value.filter((card) => !card.deleted).map((card) => card.record.semesterId)
     )
+    // Define draft for the steps below.
     const draft = await openTeamModal({
       semesters: semesters.value
         .filter((semester) => !used.has(semester.id))
@@ -69,13 +94,17 @@
       defaultSemesterId:
         semesterId.value && !used.has(semesterId.value) ? semesterId.value : undefined,
     })
+    // Check whether draft before running this branch.
     if (draft) staging.children.add(props.rowId, 'Teams', draft)
   }
 
+  // Define the helper that will staged members.
   function stagedMembers() {
+    // Pass staging.children.merge<MemberLike>(props.rowId, 'Memberships') back to the caller.
     return staging.children.merge<MemberLike>(props.rowId, 'Memberships')
   }
 
+  // Define the helper that will add member.
   async function addMember(teamId: string, isMentor: boolean) {
     // Staged additions count as taken, so the same student cannot be added twice (§3.1.5).
     const taken = new Set(
@@ -83,11 +112,14 @@
         .filter((member) => member.record.teamId === teamId && !member.deleted)
         .map((member) => member.record.studentId)
     )
+    // Define student for the steps below.
     const student = await openMemberModal({
       title: isMentor ? 'Add Mentor' : 'Add Student',
       students: allStudents.value.filter((s) => !taken.has(s.id) && (!isMentor || s.isMentor)),
     })
+    // Check whether student before running this branch.
     if (student) {
+      // Call staging.children.add to run this step.
       staging.children.add(props.rowId, 'Memberships', { teamId, studentId: student.id, isMentor })
     }
   }
@@ -99,8 +131,11 @@
    * a filter is set.
    */
   function moveDestinations(sourceTeamId: string) {
+    // Define source for the steps below.
     const source = allTeamCards.value.find((card) => card.id === sourceTeamId)?.record
+    // Check whether !source before running this branch.
     if (!source) return []
+    // Pass allProjects.value.flatMap((project) => (project.Teams ?? []) .filter( (team) => team.id !== sourceTe back to the caller.
     return allProjects.value.flatMap((project) =>
       (project.Teams ?? [])
         .filter(
@@ -115,12 +150,16 @@
 
   /** A move is two staged halves: the source membership goes, an identical one arrives (§3.1.6). */
   async function moveMember(member: MergedChild<MemberLike>) {
+    // Define destination for the steps below.
     const destination = await openMoveModal({
       teams: moveDestinations(member.record.teamId),
     })
+    // Check whether !destination before running this branch.
     if (!destination) return
+    // Check whether member.isNew before running this branch.
     if (member.isNew) staging.children.undo(props.rowId, 'Memberships', member.id)
     else staging.children.markDeleted(props.rowId, 'Memberships', member.id)
+    // Call staging.children.add to run this step.
     staging.children.add(props.rowId, 'Memberships', {
       teamId: destination,
       studentId: member.record.studentId,

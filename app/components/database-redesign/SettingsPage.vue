@@ -1,7 +1,39 @@
 <script setup lang="ts">
-  import { ref } from 'vue'
+  /**
+   * Purpose
+   * Render the settings page part of the ESA interface.
+   *
+   * Inputs
+   * - The component’s props, shared state, and any user actions it handles.
+   *
+   * Outputs
+   * - Rendered controls or content, plus events exposed to the parent where applicable.
+   *
+   * Pseudocode
+   * Read the inputs → prepare values for display → render the template → respond to user actions.
+   */
+  import { ref, computed } from 'vue'
+  import ChartFontLibrary from './ChartFontLibrary.vue'
+
+  // Each text role has its own picker and matches an existing app default.
+  const typographyRoles = [
+    { key: 'title', label: 'Page Titles', defaultFont: 'Roboto Slab', defaultSize: 24, min: 18, max: 42 },
+    { key: 'heading', label: 'Section Headings', defaultFont: 'Roboto Slab', defaultSize: 16, min: 12, max: 30 },
+    { key: 'body', label: 'Body Text', defaultFont: 'Inter', defaultSize: 13, min: 11, max: 22 },
+  ] as const
+  type TextRole = typeof typographyRoles[number]['key']
+  type Typography = Partial<Record<TextRole, string> & Record<`${TextRole}Size`, number>>
+
   import type { ColorPalette, GraphDisplaySettings } from '../types'
-  import { getSemesterLabel } from '../data'
+  import { getSemesterLabel, students, projects } from '../data'
+  // Recalculate fallStudentCount when the values it reads change.
+  const fallStudentCount = computed(
+    () => students.filter((student) => student.semesters.includes('FA26')).length
+  )
+  // Recalculate fallProjectCount when the values it reads change.
+  const fallProjectCount = computed(
+    () => projects.filter((project) => project.semesters.includes('FA26')).length
+  )
   import {
     recoveryItems,
     restoreItem,
@@ -9,13 +41,17 @@
     projectAssignmentRemovals,
   } from '../contentStore'
 
+  // Use defineProps to initialize props.
   const props = defineProps<{
     theme: 'light' | 'dark'
     palette: ColorPalette
     graphDisplay: GraphDisplaySettings
+    typography: Typography
   }>()
 
+  // Use defineEmits to initialize emit.
   const emit = defineEmits<{
+    updateTypography: [value: Typography]
     setTheme: [theme: 'light' | 'dark']
     updateColor: [key: keyof ColorPalette, value: string]
     updateGraphSetting: [
@@ -26,88 +62,63 @@
     resetGraphs: []
   }>()
 
+  // Define colorOptions for the steps below.
   const colorOptions: { key: keyof ColorPalette; label: string; description: string }[] = [
-    { key: 'primary', label: 'Primary color', description: 'Headings, controls, and key actions' },
-    { key: 'accent', label: 'Accent color', description: 'Links, highlights, and active states' },
-    { key: 'background', label: 'Page background', description: 'Main workspace background' },
-    { key: 'card', label: 'Card background', description: 'Dashboard cards and table surfaces' },
+    { key: 'primary', label: 'Primary Color', description: 'Headings, Controls, and Key Actions' },
+    { key: 'accent', label: 'Accent Color', description: 'Links, Highlights, and Active States' },
+    { key: 'background', label: 'Page Background', description: 'Main Workspace Background' },
+    { key: 'card', label: 'Card Background', description: 'Dashboard Cards and Table Surfaces' },
     {
       key: 'secondary',
-      label: 'Secondary surface',
-      description: 'Table headers and subtle panels',
+      label: 'Secondary Surface',
+      description: 'Table Headers and Subtle Panels',
     },
-    { key: 'foreground', label: 'Primary text', description: 'Main body and table text' },
+    { key: 'foreground', label: 'Primary Text', description: 'Main Body and Table Text' },
     {
       key: 'mutedForeground',
-      label: 'Secondary text',
-      description: 'Descriptions and supporting labels',
+      label: 'Secondary Text',
+      description: 'Descriptions and Supporting Labels',
     },
-    { key: 'border', label: 'Border color', description: 'Cards, dividers, and form controls' },
+    { key: 'border', label: 'Border Color', description: 'Cards, Dividers, and Form Controls' },
     {
       key: 'navigationBackground',
-      label: 'Navigation background',
-      description: 'Sidebar behind Dashboard, Students, Projects, and other pages',
+      label: 'Navigation Background',
+      description: 'Sidebar Behind Dashboard, Students, Projects, and Other Pages',
     },
     {
       key: 'navigationText',
-      label: 'Navigation text',
-      description: 'Page labels and EPICS branding in the sidebar',
+      label: 'Navigation Text',
+      description: 'Page Labels and EPICS Branding in the Sidebar',
     },
     {
       key: 'navigationActive',
-      label: 'Active navigation color',
-      description: 'Selected page indicator and navigation highlights',
-    },
-    {
-      key: 'chartText',
-      label: 'Graph text',
-      description: 'Axis labels, values, and chart legends',
-    },
-    {
-      key: 'chartGrid',
-      label: 'Graph grid lines',
-      description: 'Reference lines behind chart data',
-    },
-    {
-      key: 'classChart',
-      label: 'Class-standing graph',
-      description: 'Bars in the class-standing chart',
-    },
-    {
-      key: 'majorChart',
-      label: 'Major-distribution graph',
-      description: 'Bars in the major-distribution chart',
-    },
-    {
-      key: 'genderChart',
-      label: 'Gender graph · Primary',
-      description: 'First segment in the gender chart',
-    },
-    {
-      key: 'genderChartSecondary',
-      label: 'Gender graph · Secondary',
-      description: 'Second segment in the gender chart',
-    },
-    {
-      key: 'raceChart',
-      label: 'Race and ethnicity graph',
-      description: 'Bars in the race and ethnicity chart',
+      label: 'Active Navigation Color',
+      description: 'Selected Page Indicator and Navigation Highlights',
     },
   ]
+  // Store pendingRecovery as state so Vue reacts when it changes.
   const pendingRecovery = ref<{ key: string; action: 'restore' | 'delete' } | null>(null)
 
+  // Define the helper that will update color.
   function updateColor(event: Event, key: keyof ColorPalette) {
+    // Call emit to run this step.
     emit('updateColor', key, (event.target as HTMLInputElement).value)
   }
 
+  // Define the helper that will confirm recovery action.
   function confirmRecoveryAction() {
+    // Check whether !pendingRecovery.value before running this branch.
     if (!pendingRecovery.value) return
+    // Check whether pendingRecovery.value.action === 'restore' before running this branch.
     if (pendingRecovery.value.action === 'restore') restoreItem(pendingRecovery.value.key)
     else permanentlyDeleteItem(pendingRecovery.value.key)
+    // Update pendingRecovery.value with the value on the right.
     pendingRecovery.value = null
   }
 
+  // Define the helper that will format deleted at.
   function formatDeletedAt(value: string) {
+    // Pass new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format( new Date(val back to the caller.
     return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(
       new Date(value)
     )
@@ -139,114 +150,38 @@
       </div>
     </section>
 
-    <section class="stat-card graph-display-settings">
+
+
+    <section class="stat-card typography-settings" aria-labelledby="typography-heading">
       <div class="panel-heading">
         <div>
-          <h2>Graph Typography & Size</h2>
-          <p>These controls update all Insights graphs and are saved automatically.</p>
+          <h2 id="typography-heading">Typography</h2>
+          <p>Choose fonts for app text. Chart fonts are set in Insights.</p>
         </div>
-        <button class="secondary-button" @click="emit('resetGraphs')">Reset Graphs</button>
+        <button type="button" class="secondary-button" @click="emit('updateTypography', {})">
+          Reset Typography
+        </button>
       </div>
-      <div class="graph-control-grid">
-        <label>
-          <span>Font Family</span>
-          <select
-            :value="graphDisplay.fontFamily"
-            @change="
-              emit(
-                'updateGraphSetting',
-                'fontFamily',
-                ($event.target as HTMLSelectElement).value as GraphDisplaySettings['fontFamily']
-              )
-            "
-          >
-            <option value="Inter">Inter</option>
-            <option value="Roboto Slab">Roboto Slab</option>
-            <option value="JetBrains Mono">JetBrains Mono</option>
-          </select>
-        </label>
-        <label>
-          <span>Label Size · {{ graphDisplay.fontSize }}px</span>
-          <input
-            type="range"
-            min="10"
-            max="18"
-            :value="graphDisplay.fontSize"
-            @input="
-              emit(
-                'updateGraphSetting',
-                'fontSize',
-                Number(($event.target as HTMLInputElement).value)
-              )
-            "
+      <div class="typography-choices">
+        <fieldset v-for="role in typographyRoles" :key="role.key">
+          <legend>{{ role.label }}</legend>
+          <div class="typography-role-controls">
+          <ChartFontLibrary
+            :model-value="typography[role.key] ?? role.defaultFont"
+            @update:model-value="emit('updateTypography', { ...typography, [role.key]: $event })"
           />
-        </label>
-        <label>
-          <span>Value Size · {{ graphDisplay.valueFontSize }}px</span>
-          <input
-            type="range"
-            min="10"
-            max="20"
-            :value="graphDisplay.valueFontSize"
-            @input="
-              emit(
-                'updateGraphSetting',
-                'valueFontSize',
-                Number(($event.target as HTMLInputElement).value)
-              )
-            "
-          />
-        </label>
-        <label>
-          <span>Distribution Bar Thickness · {{ graphDisplay.barThickness }}px</span>
-          <input
-            type="range"
-            min="5"
-            max="16"
-            :value="graphDisplay.barThickness"
-            @input="
-              emit(
-                'updateGraphSetting',
-                'barThickness',
-                Number(($event.target as HTMLInputElement).value)
-              )
-            "
-          />
-        </label>
-        <label>
-          <span>Class Graph Height · {{ graphDisplay.classChartHeight }}px</span>
-          <input
-            type="range"
-            min="220"
-            max="420"
-            step="10"
-            :value="graphDisplay.classChartHeight"
-            @input="
-              emit(
-                'updateGraphSetting',
-                'classChartHeight',
-                Number(($event.target as HTMLInputElement).value)
-              )
-            "
-          />
-        </label>
-        <label>
-          <span>Gender Graph Height · {{ graphDisplay.genderChartHeight }}px</span>
-          <input
-            type="range"
-            min="220"
-            max="420"
-            step="10"
-            :value="graphDisplay.genderChartHeight"
-            @input="
-              emit(
-                'updateGraphSetting',
-                'genderChartHeight',
-                Number(($event.target as HTMLInputElement).value)
-              )
-            "
-          />
-        </label>
+            <label class="typography-size">
+              {{ role.label }} Size · {{ typography[`${role.key}Size`] ?? role.defaultSize }} px
+              <input
+                type="range"
+                :min="role.min"
+                :max="role.max"
+                :value="typography[`${role.key}Size`] ?? role.defaultSize"
+                @input="emit('updateTypography', { ...typography, [`${role.key}Size`]: Number(($event.target as HTMLInputElement).value) })"
+              />
+            </label>
+          </div>
+        </fieldset>
       </div>
     </section>
 
@@ -383,7 +318,6 @@
           <span>Students</span>
           <span>Projects</span>
           <span>Insights</span>
-          <span>AI Assistant</span>
           <span>Settings</span>
         </div>
         <div class="preview-graphs">
@@ -397,12 +331,12 @@
           <div><span>Race</span><i class="preview-bar race-bar" /></div>
         </div>
         <div class="preview-card">
-          <div class="preview-eyebrow">Spring 2026</div>
+          <div class="preview-eyebrow">Fall 2026</div>
           <h2>EPICS Program Dashboard</h2>
           <p>Preview how your selected colors work together.</p>
           <div class="preview-metrics">
-            <div><strong>151</strong><span>Students</span></div>
-            <div><strong>29</strong><span>Projects</span></div>
+            <div><strong>{{ fallStudentCount }}</strong><span>Students</span></div>
+            <div><strong>{{ fallProjectCount }}</strong><span>Projects</span></div>
           </div>
           <div class="preview-row">
             <span>Inventory Tracking</span>

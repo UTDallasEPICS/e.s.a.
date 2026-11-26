@@ -1,13 +1,35 @@
 <script setup lang="ts">
+  /**
+   * Purpose
+   * Render the partners page part of the ESA interface.
+   *
+   * Inputs
+   * - The component’s props, shared state, and any user actions it handles.
+   *
+   * Outputs
+   * - Rendered controls or content, plus events exposed to the parent where applicable.
+   *
+   * Pseudocode
+   * Read the inputs → prepare values for display → render the template → respond to user actions.
+   */
+  // Use defineProps to initialize props.
+  const props = defineProps<{ initialPartnerId?: string | null }>()
   import { partners, projects, students } from '../data'
   import StatusBadge from './StatusBadge.vue'
 
+  // Use useState to initialize semester.
+  const semester = useState<string>('epics-selected-semester', () => 'FA26')
+  // Define the helper that will partner projects.
   function partnerProjects(partnerId: string) {
-    return projects.filter((p) => p.partnerId === partnerId)
+    // Pass projects.filter((p) => p.partnerId === partnerId && (semester.value === 'all' || p.semesters.include back to the caller.
+    return projects.filter((p) => p.partnerId === partnerId && (semester.value === 'all' || p.semesters.includes(semester.value))).sort((a,b)=>a.name.localeCompare(b.name,'en',{sensitivity:'base',numeric:true}))
   }
 
+  // Define the helper that will partner student count.
   function partnerStudentCount(partnerId: string) {
+    // Use partnerProjects to initialize prs.
     const prs = partnerProjects(partnerId)
+    // Pass new Set( prs.flatMap((pr) => students.filter((s) => s.projects.includes(pr.id)).map((s) => s.id)) ). back to the caller.
     return new Set(
       prs.flatMap((pr) => students.filter((s) => s.projects.includes(pr.id)).map((s) => s.id))
     ).size
@@ -25,7 +47,7 @@
     <div
       style="display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px"
     >
-      <div v-for="partner in partners" :key="partner.id" class="stat-card">
+      <div v-for="partner in partners.filter(partner => !props.initialPartnerId || partner.id === props.initialPartnerId)" :key="partner.id" class="stat-card">
         <div
           style="
             display: flex;
@@ -43,7 +65,7 @@
             </div>
           </div>
           <span class="badge" style="background: #d4edda; color: #145214"
-            >{{ partner.activeProjects }} active</span
+            >{{ partnerProjects(partner.id).length }} in selection</span
           >
         </div>
         <div style="font-size: 12px; color: #5a6b52; margin-bottom: 12px">

@@ -1,3 +1,16 @@
+/**
+ * Purpose
+ * Provide the use semester cards logic used by other parts of ESA.
+ *
+ * Inputs
+ * - Values passed by callers and any configuration or records imported here.
+ *
+ * Outputs
+ * - The values, types, or functions exported by this file.
+ *
+ * Pseudocode
+ * Load the dependencies → define the file’s rules or helpers → expose them for other files to use.
+ */
 // The derivation behind the Students row expansion (§3.2.3).
 //
 // A student's semester is presented as one card, but it is assembled from two staged collections:
@@ -50,33 +63,47 @@ export interface ChoiceEntry {
   deleted: boolean
 }
 
+// Define the helper that will use semester cards.
 export function useSemesterCards(input: {
   staging: RowFieldStaging
   projects: Ref<ProjectRead[]>
   semesterLabel: (id?: string | null) => string
   semesterSortKey: (id?: string | null) => number
 }) {
+  // Define { staging, projects, semesterLabel, semesterSortKey } for the steps below.
   const { staging, projects, semesterLabel, semesterSortKey } = input
 
+  // Recalculate teamIndex when the values it reads change.
   const teamIndex = computed(() => {
+    // Define index for the steps below.
     const index = new Map<string, { teamId: string; semesterId: string; project: ProjectRead }>()
+    // Repeat the following steps for each item in projects.value.
     for (const project of projects.value) {
+      // Repeat the following steps for each item in project.Teams.
       for (const team of project.Teams) {
+        // Call index.set to run this step.
         index.set(team.id, { teamId: team.id, semesterId: team.semesterId, project })
       }
     }
+    // Pass index back to the caller.
     return index
   })
 
+  // Define the helper that will team in.
   function teamIn(project: ProjectRead, semesterId: string) {
+    // Pass project.Teams.find((team) => team.semesterId === semesterId) back to the caller.
     return project.Teams.find((team) => team.semesterId === semesterId)
   }
 
+  // Define the helper that will team project.
   function teamProject(teamId?: string) {
+    // Pass teamId ? teamIndex.value.get(teamId)?.project : undefined back to the caller.
     return teamId ? teamIndex.value.get(teamId)?.project : undefined
   }
 
+  // Define the helper that will membership semester.
   function membershipSemester(membership: MergedChild<any>) {
+    // Pass membership.isNew ? membership.record.semesterId : membership.record.Team?.semesterId back to the caller.
     return membership.isNew ? membership.record.semesterId : membership.record.Team?.semesterId
   }
 
@@ -95,44 +122,66 @@ export function useSemesterCards(input: {
     isMentor: boolean,
     anchorId?: string
   ) {
+    // Use staging.children.merge to initialize merged.
     const merged = staging.children.merge(rowId, 'Memberships')
+    // Define existing for the steps below.
     let existing: MergedChild<any> | undefined
+    // Define added for the steps below.
     let added: MergedChild<any> | undefined
+    // Repeat the following steps for each item in merged.
     for (const membership of merged) {
+      // Check whether !!membership.record.isMentor !== isMentor before running this branch.
       if (!!membership.record.isMentor !== isMentor) continue
+      // Check whether membershipSemester(membership) !== semesterId before running this branch.
       if (membershipSemester(membership) !== semesterId) continue
+      // Check whether anchorId before running this branch.
       if (anchorId) {
+        // Check whether membership.isNew before running this branch.
         if (membership.isNew) {
+          // Check whether membership.id === anchorId || membership.record.replacesId === anchorId before running this branch.
           if (membership.id === anchorId || membership.record.replacesId === anchorId) {
             added ??= membership
           }
         } else if (membership.id === anchorId) {
+          // Update existing with the value on the right.
           existing = membership
         }
         continue
       }
+      // Check whether membership.isNew before running this branch.
       if (membership.isNew) added ??= membership
       else existing ??= membership
     }
+    // Define originalTeamId for the steps below.
     const originalTeamId = existing
       ? (row.Memberships ?? []).find((m) => m.id === existing!.id)?.teamId
       : undefined
+    // Define teamId for the steps below.
     const teamId = added
       ? added.record.teamId
       : existing && !existing.deleted
         ? existing.record.teamId
         : undefined
+    // Pass { existing, added, teamId, originalTeamId, changed: teamId !== originalTeamId } back to the caller.
     return { existing, added, teamId, originalTeamId, changed: teamId !== originalTeamId }
   }
 
+  // Define the helper that will cards for.
   function cardsFor(row: StudentRow, rowId: string): SemesterCard[] {
+    // Define cards for the steps below.
     const cards: SemesterCard[] = []
 
+    // Use staging.children.merge to initialize enrollments.
     const enrollments = staging.children.merge(rowId, 'Enrollments')
+    // Repeat the following steps for each item in enrollments.
     for (const enrollment of enrollments) {
+      // Define semesterId for the steps below.
       const semesterId = enrollment.record.semesterId
+      // Check whether !semesterId before running this branch.
       if (!semesterId) continue
+      // Use membershipSlot to initialize slot.
       const slot = membershipSlot(row, rowId, semesterId, false)
+      // Call cards.push to run this step.
       cards.push({
         key: `enrollment:${enrollment.id}`,
         role: 'Student',
@@ -153,19 +202,32 @@ export function useSemesterCards(input: {
     // project), so each mentor Membership is its own card — anchored to the fetched membership it
     // came from, or to itself when it's a staged-new one with no fetched counterpart to replace.
     const memberships = staging.children.merge(rowId, 'Memberships')
+    // Define mentorAnchors for the steps below.
     const mentorAnchors = new Map<string, string>()
+    // Repeat the following steps for each item in memberships.
     for (const membership of memberships) {
+      // Check whether !membership.record.isMentor before running this branch.
       if (!membership.record.isMentor) continue
+      // Use membershipSemester to initialize semesterId.
       const semesterId = membershipSemester(membership)
+      // Check whether !semesterId before running this branch.
       if (!semesterId) continue
+      // Check whether membership.isNew && membership.record.replacesId before running this branch.
       if (membership.isNew && membership.record.replacesId) continue
+      // Call mentorAnchors.set to run this step.
       mentorAnchors.set(membership.id, semesterId)
     }
+    // Repeat the following steps for each item in mentorAnchors.
     for (const [anchorId, semesterId] of mentorAnchors) {
+      // Use membershipSlot to initialize slot.
       const slot = membershipSlot(row, rowId, semesterId, true, anchorId)
+      // Define anchor for the steps below.
       const anchor = slot.existing ?? slot.added
+      // Check whether !anchor before running this branch.
       if (!anchor) continue
+      // Define deleted for the steps below.
       const deleted = !!slot.existing?.deleted && !slot.added
+      // Call cards.push to run this step.
       cards.push({
         key: `mentor:${anchorId}`,
         role: 'Mentor',
@@ -181,27 +243,37 @@ export function useSemesterCards(input: {
       })
     }
 
+    // Pass cards.sort((a, b) => semesterSortKey(b.semesterId) - semesterSortKey(a.semesterId)) back to the caller.
     return cards.sort((a, b) => semesterSortKey(b.semesterId) - semesterSortKey(a.semesterId))
   }
 
+  // Define the helper that will set team.
   function setTeam(row: StudentRow, rowId: string, card: SemesterCard, project?: ProjectRead) {
+    // Define isMentor for the steps below.
     const isMentor = card.role === 'Mentor'
+    // Define teamId for the steps below.
     const teamId = project ? teamIn(project, card.semesterId)?.id : undefined
     // Pinned to this card's own membership so a change on one mentor slot can't be picked up by
     // `membershipSlot`'s search and misattributed to a sibling mentor slot in the same semester.
     const anchorId = card.membershipId ?? card.addedMembershipId
+    // Use membershipSlot to initialize slot.
     const slot = membershipSlot(row, rowId, card.semesterId, isMentor, anchorId)
 
     // A staged-new membership with no fetched counterpart is simply retargeted in place; on a
     // Mentor card it is the card itself, so it survives being cleared.
     if (slot.added && !slot.existing) {
+      // Check whether !teamId && !isMentor before running this branch.
       if (!teamId && !isMentor) staging.children.undo(rowId, 'Memberships', slot.added.id)
       else staging.children.set(rowId, 'Memberships', slot.added.id, 'teamId', teamId)
       return
     }
+    // Check whether slot.added before running this branch.
     if (slot.added) staging.children.undo(rowId, 'Memberships', slot.added.id)
+    // Check whether !slot.existing before running this branch.
     if (!slot.existing) {
+      // Check whether teamId before running this branch.
       if (teamId) {
+        // Call staging.children.add to run this step.
         staging.children.add(rowId, 'Memberships', {
           semesterId: card.semesterId,
           teamId,
@@ -210,11 +282,15 @@ export function useSemesterCards(input: {
       }
       return
     }
+    // Define shouldDelete for the steps below.
     const shouldDelete = teamId !== slot.originalTeamId
+    // Check whether slot.existing.deleted !== shouldDelete before running this branch.
     if (slot.existing.deleted !== shouldDelete) {
+      // Check whether shouldDelete before running this branch.
       if (shouldDelete) staging.children.markDeleted(rowId, 'Memberships', slot.existing.id)
       else staging.children.undo(rowId, 'Memberships', slot.existing.id)
     }
+    // Check whether teamId && shouldDelete before running this branch.
     if (teamId && shouldDelete) {
       // `replacesId` links this staged-new membership back to the fetched one it's retargeting, so
       // `membershipSlot` can re-pair them into a single card even when a mentor has other, untouched
@@ -229,23 +305,33 @@ export function useSemesterCards(input: {
     }
   }
 
+  // Define the helper that will delete card.
   function deleteCard(rowId: string, card: SemesterCard) {
+    // Check whether card.role === 'Student' before running this branch.
     if (card.role === 'Student') {
       // Dropping a staged-new card takes its staged team assignment with it, so nothing is left
       // behind to be POSTed for a card that is no longer on screen.
       if (card.state === 'new' && card.addedMembershipId) {
+        // Call staging.children.undo to run this step.
         staging.children.undo(rowId, 'Memberships', card.addedMembershipId)
       }
+      // Call staging.children.markDeleted to run this step.
       staging.children.markDeleted(rowId, 'Enrollments', card.childId)
       return
     }
+    // Check whether card.addedMembershipId before running this branch.
     if (card.addedMembershipId) staging.children.undo(rowId, 'Memberships', card.addedMembershipId)
+    // Check whether card.membershipId before running this branch.
     if (card.membershipId) staging.children.markDeleted(rowId, 'Memberships', card.membershipId)
   }
 
+  // Define the helper that will undo card.
   function undoCard(rowId: string, card: SemesterCard) {
+    // Check whether card.addedMembershipId before running this branch.
     if (card.addedMembershipId) staging.children.undo(rowId, 'Memberships', card.addedMembershipId)
+    // Check whether card.membershipId before running this branch.
     if (card.membershipId) staging.children.undo(rowId, 'Memberships', card.membershipId)
+    // Check whether card.role === 'Student' before running this branch.
     if (card.role === 'Student') staging.children.undo(rowId, 'Enrollments', card.childId)
   }
 
@@ -255,7 +341,9 @@ export function useSemesterCards(input: {
    * shifting produces once the edit is saved.
    */
   function choiceEntries(row: StudentRow, rowId: string, semesterId: string): ChoiceEntry[] {
+    // Define originals for the steps below.
     const originals = row.Choices ?? []
+    // Pass staging.children .merge<StagedChoice>(rowId, 'Choices') .filter((choice) => choice.record.semesterId back to the caller.
     return staging.children
       .merge<StagedChoice>(rowId, 'Choices')
       .filter((choice) => choice.record.semesterId === semesterId)
@@ -278,12 +366,17 @@ export function useSemesterCards(input: {
    * side, so rewriting every sibling here would fight it.
    */
   function moveChoice(rowId: string, entries: ChoiceEntry[], index: number, direction: -1 | 1) {
+    // Define entry for the steps below.
     const entry = entries[index]
+    // Define neighbour for the steps below.
     const neighbour = entries[index + direction]
+    // Check whether !entry || !neighbour before running this branch.
     if (!entry || !neighbour) return
+    // Call staging.children.set to run this step.
     staging.children.set(rowId, 'Choices', entry.id, 'rank', entry.rank + direction)
   }
 
+  // Pass { teamIn, teamProject, cardsFor, setTeam, deleteCard, undoCard, choiceEntries, moveChoice, } back to the caller.
   return {
     teamIn,
     teamProject,

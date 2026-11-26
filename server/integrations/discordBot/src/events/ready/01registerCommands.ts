@@ -1,3 +1,16 @@
+/**
+ * Purpose
+ * Provide the 01register commands logic used by other parts of ESA.
+ *
+ * Inputs
+ * - Values passed by callers and any configuration or records imported here.
+ *
+ * Outputs
+ * - The values, types, or functions exported by this file.
+ *
+ * Pseudocode
+ * Load the dependencies → define the file’s rules or helpers → expose them for other files to use.
+ */
 import { Client } from 'discord.js'
 //import { testServer } from '../../../config.json';
 import areCommandsDifferent from '../../utils/areCommandsDifferent'
@@ -13,6 +26,7 @@ export default async (client: Client) => {
 
     // Loop through all local commands and compare them to application commands for any differences
     for (const localCommand of localCommands) {
+      // Define { name, description, options } for the steps below.
       const { name, description, options } = localCommand
 
       // Checks if command exists on bot
@@ -23,6 +37,7 @@ export default async (client: Client) => {
         // If command has property "deleted: true" then bot will remove the command
         if (localCommand.deleted) {
           await applicationCommands.delete(existingCommand.id)
+          // Call console.log to run this step.
           console.log(`🗑 Deleted command "${name}".`)
           continue
         }
@@ -35,11 +50,14 @@ export default async (client: Client) => {
             options,
           })
 
+          // Call console.log to run this step.
           console.log(`🔁 Edited command "${name}".`)
         }
         // Checks if local command is set to be deleted and skips it if so
       } else {
+        // Check whether localCommand.deleted before running this branch.
         if (localCommand.deleted) {
+          // Call console.log to run this step.
           console.log(`⏩ Skipping registering command "${name}" as it's set to delete.`)
           continue
         }
@@ -52,10 +70,12 @@ export default async (client: Client) => {
           options,
         })
 
+        // Call console.log to run this step.
         console.log(`👍 Registered command "${name}."`)
       }
     }
   } catch (error) {
+    // Call console.log to run this step.
     console.log(`There was an error registering commands: ${error}`)
   }
 }

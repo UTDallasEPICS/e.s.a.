@@ -62,7 +62,7 @@ model Account {
 
 model Verification {
   id         String   @id @default(uuid())
-  identifier String
+  identifier String @unique
   value      String
   expiresAt  DateTime
   createdAt  DateTime @default(now())
@@ -150,7 +150,7 @@ model Student {
   github    String?  @unique
   discord   String?  @unique
   email     String?  @unique
-  netID     String   @unique
+  netID     String?  @unique
   firstName String
   lastName  String
   isMentor  Boolean  @default(false)
@@ -222,17 +222,20 @@ enum Year {
   SOPHOMORE
   JUNIOR
   SENIOR
+  UNKNOWN
 }
 
 enum Class {
   EPCS_2200
   EPCS_3200
+  UNKNOWN
 }
 
 enum Gender {
   MALE
   FEMALE
   OTHER
+  UNKNOWN
 }
 
 enum Season {
@@ -245,6 +248,7 @@ enum ProjectType {
   SOFTWARE
   HARDWARE
   BOTH
+  UNKNOWN
 }
 
 enum ProjectStatus {
@@ -259,6 +263,7 @@ enum ProjectStatus {
 enum ProjectMeetingDay {
   WEDNESDAY
   THURSDAY
+  UNKNOWN
 }
 
 // Access level for a logged-in User (Better Auth), independent of the Student/Enrollment model.

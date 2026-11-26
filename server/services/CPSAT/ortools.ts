@@ -1,3 +1,16 @@
+/**
+ * Purpose
+ * Provide the ortools logic used by other parts of ESA.
+ *
+ * Inputs
+ * - Values passed by callers and any configuration or records imported here.
+ *
+ * Outputs
+ * - The values, types, or functions exported by this file.
+ *
+ * Pseudocode
+ * Load the dependencies → define the file’s rules or helpers → expose them for other files to use.
+ */
 //typeScript wrapper for Google OR-Tools Python CP-SAT solver
 import { spawn } from 'child_process'
 import { existsSync } from 'fs'
@@ -64,22 +77,31 @@ export async function generateTeamsORTools(
   projects: Project[],
   config?: CPSATConfig
 ): Promise<CPSATRunResult> {
+  // Call console.log to run this step.
   console.log('Starting OR-Tools CP-SAT team generation...')
+  // Call console.log to run this step.
   console.log(`Students: ${students.length}, Projects: ${projects.length}`)
 
+  // Use Date.now to initialize startTime.
   const startTime = Date.now()
+  // Use fileURLToPath to initialize __filename.
   const __filename = fileURLToPath(import.meta.url)
+  // Use dirname to initialize __dirname.
   const __dirname = dirname(__filename)
 
+  // Define pythonScriptCandidates for the steps below.
   const pythonScriptCandidates = [
     resolve(process.cwd(), 'algorithms', 'CPSAT', 'team_generator.py'),
     resolve(process.cwd(), 'Teambuilder', 'algorithms', 'CPSAT', 'team_generator.py'),
     resolve(process.cwd(), 'server', 'services', 'CPSAT', 'team_generator.py'),
     join(__dirname, 'team_generator.py'),
   ]
+  // Use pythonScriptCandidates.find to initialize pythonScriptPath.
   const pythonScriptPath = pythonScriptCandidates.find((candidate) => existsSync(candidate))
 
+  // Check whether !pythonScriptPath before running this branch.
   if (!pythonScriptPath) {
+    // Stop this operation and tell the caller why it cannot continue.
     throw new Error(`team_generator.py not found. Tried: ${pythonScriptCandidates.join(', ')}`)
   }
 
@@ -111,32 +133,44 @@ export async function generateTeamsORTools(
     },
   }
 
+  // Use JSON.stringify to initialize inputJson.
   const inputJson = JSON.stringify(inputData)
 
+  // Pass new Promise((resolve, reject) => { // Spawn Python process const pythonProcess = spawn('python', [py back to the caller.
   return new Promise((resolve, reject) => {
     // Spawn Python process
     const pythonProcess = spawn('python', [pythonScriptPath], {
       cwd: dirname(pythonScriptPath),
     })
 
+    // Define stdout for the steps below.
     let stdout = ''
+    // Define stderr for the steps below.
     let stderr = ''
 
+    // Call pythonProcess.stdout.on to run this step.
     pythonProcess.stdout.on('data', (data: Buffer) => {
       stdout += data.toString()
     })
 
+    // Call pythonProcess.stderr.on to run this step.
     pythonProcess.stderr.on('data', (data: Buffer) => {
       stderr += data.toString()
     })
 
+    // Call pythonProcess.on to run this step.
     pythonProcess.on('error', (error: Error) => {
+      // Call reject to run this step.
       reject(new Error(`Failed to start Python process: ${error.message}`))
     })
 
+    // Call pythonProcess.on to run this step.
     pythonProcess.on('close', (code: number | null) => {
+      // Check whether code !== 0 before running this branch.
       if (code !== 0) {
+        // Call console.error to run this step.
         console.error('Python stderr:', stderr)
+        // Call reject to run this step.
         reject(new Error(`Python process exited with code ${code}: ${stderr}`))
         return
       }
@@ -145,38 +179,51 @@ export async function generateTeamsORTools(
         // Parse result
         const result: CPSATResult = JSON.parse(stdout)
 
+        // Check whether !result.success before running this branch.
         if (!result.success) {
+          // Call reject to run this step.
           reject(new Error(result.error || 'Failed to generate teams'))
           return
         }
 
+        // Call console.log to run this step.
         console.log(`\nSolution found in ${result.solve_time?.toFixed(3)}s`)
+        // Call console.log to run this step.
         console.log(`Status: ${result.status}`)
+        // Call console.log to run this step.
         console.log(`Score: ${result.score}`)
 
         // Convert student IDs back to student objects
         const teamAssignments: TeamAssignments = {}
+        // Define studentMap for the steps below.
         const studentMap = new Map(students.map((s) => [s.id, s]))
 
+        // Repeat the following steps for each item in Object.entries(result.teams!).
         for (const [projectName, studentIds] of Object.entries(result.teams!)) {
+          // Update teamAssignments[projectName] with the value on the right.
           teamAssignments[projectName] = studentIds
             .map((id) => studentMap.get(id))
             .filter((s): s is Student => s !== undefined)
         }
 
+        // Use Date.now to initialize endTime.
         const endTime = Date.now()
+        // Call console.log to run this step.
         console.log(`Total execution time: ${endTime - startTime}ms\n`)
 
+        // Call resolve to run this step.
         resolve({
           assignments: teamAssignments,
         })
       } catch (error: any) {
+        // Call reject to run this step.
         reject(new Error(`Failed to parse Python output: ${error.message}\nOutput: ${stdout}`))
       }
     })
 
     // Write input to stdin
     pythonProcess.stdin.write(inputJson)
+    // Call pythonProcess.stdin.end to run this step.
     pythonProcess.stdin.end()
   })
 }

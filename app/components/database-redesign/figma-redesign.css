@@ -1781,3 +1781,36 @@ input:focus {
     grid-template-columns: 1fr 1fr;
   }
 }
+
+/* Apply typography only within the redesigned app. */
+.esa-redesign,
+.esa-redesign :is(button, input, select, textarea) {
+  font-family: var(--esa-body-font, 'Inter'), system-ui, sans-serif;
+}
+.esa-redesign :is(h2, h3, h4, h5, h6, .font-display) {
+  font-family: var(--esa-heading-font, 'Roboto Slab'), serif;
+}
+.esa-redesign :is(h1, .page-title) {
+  font-family: var(--esa-title-font, 'Roboto Slab'), serif;
+}
+.typography-settings { margin-block: 18px; }
+.typography-choices { display: grid; gap: 12px; padding: 0 18px 18px; }
+.typography-choices fieldset { min-width: 0; border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
+.typography-choices legend { padding-inline: 4px; font-weight: 600; }
+
+/* Apply overrides only after a size is chosen. Some page titles use inline sizes. */
+.esa-redesign.custom-title-size :is(h1, .page-title) { font-size: var(--esa-title-size) !important; }
+.esa-redesign.custom-heading-size :is(h2, h3, h4, h5, h6, .font-display):not(h1, .page-title, .brand-text) {
+  font-size: var(--esa-heading-size) !important;
+}
+.esa-redesign.custom-body-size,
+.esa-redesign.custom-body-size :is(p, label, legend, button, input, select, textarea, td, th, .nav-label) {
+  font-size: var(--esa-body-size) !important;
+}
+.typography-role-controls { display: grid; gap: 12px; align-items: start; }
+.typography-role-controls .font-library { grid-column: auto; }
+.typography-size { display: grid; gap: 6px; }
+.typography-size input { width: 100%; }
+@media (min-width: 760px) {
+  .typography-role-controls { grid-template-columns: minmax(0, 1fr) minmax(180px, 0.75fr); }
+}

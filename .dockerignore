@@ -7,3 +7,7 @@ README.md
 dockerfile
 .dockerignore
 prisma/generated
+app/components/verified-data.json
+app/components/fall2026.json
+*.db
+*.db-*

@@ -1,4 +1,18 @@
 <template>
+<!--
+Purpose
+Render the inactive part of the ESA interface.
+
+Inputs
+- The component’s props, shared state, and any user actions it handles.
+
+Outputs
+- Rendered controls or content, plus events exposed to the parent where applicable.
+
+Pseudocode
+Read the inputs → prepare values for display → render the template → respond to user actions.
+-->
+
   <UContainer class="flex min-h-[70vh] items-center justify-center py-12">
     <UCard class="max-w-md text-center">
       <div class="flex flex-col items-center gap-4">
